@@ -1,0 +1,2284 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#f59e0b">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="煎鳥蛋POS">
+  <title>煎鳥蛋 POS 與智慧雲端庫存系統 (正式版)</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@500;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-cream: #faf7f2;
+      --card-white: #ffffff;
+      --border-warm: #e7e0d6;
+    }
+    body {
+      font-family: 'Noto Sans TC', sans-serif;
+      background-color: var(--bg-cream);
+      color: #292524;
+      user-select: none;
+      -webkit-user-select: none;
+      touch-action: manipulation;
+    }
+    .mono { font-family: 'JetBrains Mono', monospace; }
+    
+    /* 實體按鈕按壓回饋 */
+    .pos-btn {
+      transition: transform 0.06s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.06s ease;
+    }
+    .pos-btn:active {
+      transform: scale(0.96) translateY(2px);
+    }
+    @keyframes flashRing {
+      0% { box-shadow: 0 0 0 0 rgba(217, 119, 6, 0.6); }
+      100% { box-shadow: 0 0 0 14px rgba(217, 119, 6, 0); }
+    }
+    .btn-flash {
+      animation: flashRing 0.35s ease-out;
+    }
+    ::-webkit-scrollbar { width: 5px; height: 5px; }
+    ::-webkit-scrollbar-track { background: #f5f0e6; }
+    ::-webkit-scrollbar-thumb { background: #d6cec2; border-radius: 99px; }
+  </style>
+</head>
+<body class="h-screen flex flex-col overflow-hidden">
+
+  <!-- ================= 頂部極簡狀態列 ================= -->
+  <header class="bg-white border-b border-stone-200 px-2.5 py-2 shrink-0 shadow-xs z-20">
+    <div class="max-w-5xl mx-auto flex flex-wrap items-center justify-between gap-1.5">
+      
+      <!-- 左側：營業計時、防休眠指示燈、下班結算 -->
+      <div class="flex items-center gap-1.5">
+        <button id="shiftBtn" onclick="toggleShift()" class="pos-btn flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl font-bold text-xs shadow-xs bg-emerald-600 text-white">
+          <span id="shiftDot" class="w-2 h-2 rounded-full bg-white"></span>
+          <span id="shiftText">開始營業</span>
+        </button>
+        <div class="bg-stone-100 border border-stone-200 px-2 py-1 rounded-xl flex items-center gap-1">
+          <span id="shiftTimer" class="mono text-xs font-extrabold text-stone-800">00:00:00</span>
+          <!-- 螢幕常亮防休眠指示燈 -->
+          <button onclick="toggleWakeLockManual()" id="wakeLockBadge" title="點擊切換螢幕防休眠常亮" class="text-[10px] px-1.5 py-0.5 rounded-md font-bold bg-stone-200 text-stone-500 transition">
+            🌙可休眠
+          </button>
+        </div>
+        <button onclick="openCloseOutModal()" class="pos-btn bg-rose-600 hover:bg-rose-700 text-white font-black text-xs px-2.5 py-1.5 rounded-xl shadow-xs flex items-center gap-1">
+          🏁 下班結算
+        </button>
+      </div>
+
+      <!-- 中間：最後點擊毫秒紀錄 (無彈窗干擾) -->
+      <div id="lastActionPill" class="hidden md:flex items-center gap-1.5 bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-full text-[11px] text-amber-900 font-bold">
+        <span class="w-1.5 h-1.5 rounded-full bg-amber-500 animate-ping"></span>
+        <span id="lastActionText" class="mono">準備就緒</span>
+      </div>
+
+      <!-- 右側：即時指標 + 雲端狀態燈 -->
+      <div class="flex items-center gap-1.5 ml-auto">
+        <button onclick="switchTab('cloud')" id="cloudStatusBadge" class="pos-btn px-2 py-1 rounded-xl border text-[10px] font-bold flex items-center gap-1 bg-stone-100 border-stone-200 text-stone-500">
+          <span id="cloudStatusDot" class="w-1.5 h-1.5 rounded-full bg-stone-400"></span>
+          <span id="cloudStatusText" class="hidden sm:inline">未綁雲端</span>
+        </button>
+        <div class="bg-stone-50 border border-stone-200 px-2 py-1 rounded-xl text-right">
+          <span class="text-[10px] text-stone-400 font-bold block leading-none">已賣</span>
+          <span id="statSticks" class="mono text-sm font-black text-stone-800">0</span>
+          <span class="text-[10px] text-stone-500 font-bold">串</span>
+        </div>
+        <div class="bg-stone-50 border border-stone-200 px-2 py-1 rounded-xl text-right">
+          <span class="text-[10px] text-stone-400 font-bold block leading-none">營業額</span>
+          <span id="statRev" class="mono text-sm font-black text-emerald-700">$0</span>
+        </div>
+        <div class="bg-amber-50/80 border border-amber-200 px-2 py-1 rounded-xl text-right">
+          <span class="text-[10px] text-amber-700 font-bold block leading-none">淨利(含租)</span>
+          <span id="statProfit" class="mono text-sm font-black text-amber-900">$0</span>
+        </div>
+      </div>
+
+    </div>
+  </header>
+
+  <!-- ================= 主內容區 (五分頁切換) ================= -->
+  <main class="flex-1 overflow-y-auto">
+    
+    <!-- 【分頁 1：前台收銀 POS (極簡 + 原味超巨型按鈕)】 -->
+    <section id="tab-pos" class="h-full max-w-5xl mx-auto p-2.5 sm:p-4 flex flex-col justify-between gap-2.5">
+      
+      <!-- 1. 鳥蛋籃數進度與空籃換新 (連動鳥蛋籃庫存) -->
+      <div class="bg-white border border-stone-200 rounded-2xl p-3 shadow-xs flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5">
+        <div class="flex-1">
+          <div class="flex items-center justify-between mb-1">
+            <div class="flex items-center gap-1.5 flex-wrap">
+              <span class="bg-amber-100 text-amber-900 text-xs font-black px-2 py-0.5 rounded-lg border border-amber-300">
+                第 <span id="basketIdx" class="mono">1</span> 籃使用中
+              </span>
+              <span class="text-xs font-bold text-stone-600">
+                本籃已賣 <strong id="basketCurrent" class="mono text-sm text-amber-700">0</strong>
+                / 歷史均 <strong id="basketAvgTarget" class="mono text-stone-800">50</strong> 串
+              </span>
+              <span id="eggStockBadge" class="text-[11px] bg-emerald-50 text-emerald-800 border border-emerald-200 px-2 py-0.5 rounded-md font-bold mono">
+                庫存剩 3.00 籃
+              </span>
+            </div>
+            <span id="basketRemainText" class="text-[11px] font-bold text-stone-500">預估還可串 50 串</span>
+          </div>
+          <!-- 進度條 -->
+          <div class="w-full h-3 bg-stone-100 rounded-full overflow-hidden border border-stone-200 p-0.5">
+            <div id="basketBar" class="h-full bg-gradient-to-r from-amber-400 to-orange-500 rounded-full transition-all duration-200" style="width: 0%"></div>
+          </div>
+        </div>
+
+        <div class="flex items-center gap-2 shrink-0">
+          <button onclick="recordEmptyBasket()" class="pos-btn flex-1 sm:flex-initial bg-amber-500 hover:bg-amber-600 text-white font-black text-xs px-3.5 py-2.5 rounded-xl shadow-xs flex items-center justify-center gap-1.5">
+            <span>🧺 空籃換新</span>
+            <span class="text-[10px] bg-amber-700/40 px-1.5 py-0.5 rounded font-normal">自動學串數</span>
+          </button>
+          <button onclick="recordWasteEgg(1)" class="pos-btn bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-bold text-xs px-3 py-2.5 rounded-xl flex items-center gap-1">
+            <span>💥 破蛋+1</span>
+            <span id="wasteCountBadge" class="mono bg-rose-200/70 text-rose-900 px-1.5 rounded text-[11px]">0</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- 2. 倍率選擇與復原列 -->
+      <div class="flex items-center justify-between gap-2">
+        <div class="flex items-center gap-1.5 flex-1">
+          <span class="text-xs font-extrabold text-stone-500 mr-1 hidden sm:inline">單次點擊數量:</span>
+          <button onclick="setMultiplier(1)" id="mult-1" class="mult-btn pos-btn flex-1 py-2 rounded-xl font-black text-sm border-2 border-amber-600 bg-amber-500 text-white shadow-xs">+1 串</button>
+          <button onclick="setMultiplier(2)" id="mult-2" class="mult-btn pos-btn flex-1 py-2 rounded-xl font-black text-sm border border-stone-300 bg-white text-stone-700">+2 串</button>
+          <button onclick="setMultiplier(3)" id="mult-3" class="mult-btn pos-btn flex-1 py-2 rounded-xl font-black text-sm border border-stone-300 bg-white text-stone-700">+3 串</button>
+          <button onclick="setMultiplier(5)" id="mult-5" class="mult-btn pos-btn flex-1 py-2 rounded-xl font-black text-sm border border-stone-300 bg-white text-stone-700">+5 串</button>
+        </div>
+        <button onclick="undoLastSale()" class="pos-btn bg-stone-200 hover:bg-stone-300 text-stone-800 font-bold text-xs px-3.5 py-2.5 rounded-xl flex items-center gap-1 shrink-0">
+          ↩️ 復原上筆
+        </button>
+      </div>
+
+      <!-- 3. 口味點單主網格 (原味超巨型在上方 + 4種口味 2x2 在下方) -->
+      <div id="flavorGridContainer" class="flex-1 flex flex-col gap-2.5 min-h-[320px]">
+        <!-- 由 JS 動態渲染 -->
+      </div>
+
+    </section>
+
+    <!-- 【分頁 2：分類庫存、鳥蛋籃換算與收攤盤點】 -->
+    <section id="tab-inventory" class="hidden max-w-5xl mx-auto p-3 sm:p-5 space-y-4">
+      
+      <!-- 1. 店租設定卡片 (日租 / 月租切換) -->
+      <div class="bg-white border border-stone-200 rounded-2xl p-4 shadow-xs">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div>
+            <h2 class="text-sm font-black text-stone-800 flex items-center gap-1.5">
+              🏪 攤位店租設定 (自動計入今日淨利與下班戰報)
+            </h2>
+            <p class="text-xs text-stone-500 mt-0.5">可自由切換「日租」或「月租折算」，系統會自動扣除當日攤提租金。</p>
+          </div>
+          <div class="flex items-center bg-stone-100 p-1 rounded-xl border border-stone-200 self-start">
+            <button id="rentModeDailyBtn" onclick="setRentMode('daily')" class="px-3 py-1.5 rounded-lg text-xs font-bold transition">依日租計算</button>
+            <button id="rentModeMonthlyBtn" onclick="setRentMode('monthly')" class="px-3 py-1.5 rounded-lg text-xs font-bold transition">依月租折算</button>
+          </div>
+        </div>
+
+        <div class="mt-3 pt-3 border-t border-stone-100 grid grid-cols-1 sm:grid-cols-3 gap-3 items-center">
+          <div id="rentDailyInputBox" class="flex items-center gap-2">
+            <label class="text-xs font-bold text-stone-600 shrink-0">單日擺攤租金 ($):</label>
+            <input type="number" id="rentDailyVal" onchange="saveRentConfig()" class="mono w-full bg-stone-50 border border-stone-300 rounded-xl px-3 py-1.5 text-sm font-bold text-stone-800">
+          </div>
+          <div id="rentMonthlyInputBox" class="hidden sm:col-span-2 grid grid-cols-2 gap-2">
+            <div class="flex items-center gap-1.5">
+              <label class="text-xs font-bold text-stone-600 shrink-0">月租總額 ($):</label>
+              <input type="number" id="rentMonthlyVal" onchange="saveRentConfig()" class="mono w-full bg-stone-50 border border-stone-300 rounded-xl px-2.5 py-1.5 text-sm font-bold text-stone-800">
+            </div>
+            <div class="flex items-center gap-1.5">
+              <label class="text-xs font-bold text-stone-600 shrink-0">預計月營業天數:</label>
+              <input type="number" id="rentMonthlyDays" onchange="saveRentConfig()" class="mono w-full bg-stone-50 border border-stone-300 rounded-xl px-2.5 py-1.5 text-sm font-bold text-stone-800">
+            </div>
+          </div>
+          <div class="bg-amber-50 border border-amber-200 rounded-xl px-3 py-2 flex items-center justify-between sm:justify-end gap-2">
+            <span class="text-xs font-bold text-amber-800">今日攤提店租：</span>
+            <strong id="effectiveDailyRentDisplay" class="mono text-base font-black text-amber-900">$800</strong>
+          </div>
+        </div>
+      </div>
+
+      <!-- 2. 鳥蛋「進貨(籃) ⟷ 銷售(串)」智慧換算看板 -->
+      <div class="bg-gradient-to-r from-amber-50 via-orange-50/60 to-amber-50 border border-amber-300 rounded-2xl p-4 shadow-xs">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div class="space-y-1">
+            <div class="flex items-center gap-2">
+              <span class="bg-amber-600 text-white text-[11px] font-black px-2 py-0.5 rounded-md">核心連動機制</span>
+              <h3 class="text-sm font-black text-amber-950">🥚 鳥蛋「以籃進貨 ➔ 以串扣庫存」自動換算引擎</h3>
+            </div>
+            <p class="text-xs text-amber-900/80 leading-relaxed">
+              進貨鳥蛋時直接輸入<strong>「幾籃」</strong>即可！系統會根據您前台按<strong>「🧺 空籃換新」</strong>累積的實測平均值，自動算出每賣 1 串要扣幾分之幾籃，並動態修正每串的蛋體成本。
+            </p>
+          </div>
+          <div class="bg-white/90 border border-amber-200 rounded-xl p-2.5 shrink-0 flex items-center gap-4">
+            <div class="text-center">
+              <span class="text-[10px] font-bold text-stone-400 block">每籃平均產出</span>
+              <strong id="eggRuleAvgSticks" class="mono text-sm font-black text-amber-700">50.0 串/籃</strong>
+            </div>
+            <div class="h-7 w-px bg-stone-200"></div>
+            <div class="text-center">
+              <span class="text-[10px] font-bold text-stone-400 block">每串扣減籃數</span>
+              <strong id="eggRuleBasketPerStick" class="mono text-sm font-black text-stone-700">0.0200 籃</strong>
+            </div>
+            <div class="h-7 w-px bg-stone-200"></div>
+            <div class="text-center">
+              <span class="text-[10px] font-bold text-stone-400 block">目前每串蛋成本</span>
+              <strong id="eggRuleCostPerStick" class="mono text-sm font-black text-emerald-700">$15.60</strong>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 3. 庫存分類篩選列 + 操作按鈕 -->
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+        <div id="categoryFilterBar" class="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0"></div>
+
+        <div class="flex flex-wrap items-center gap-2 shrink-0">
+          <button onclick="openPurchaseModal()" class="pos-btn bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-3 py-2 rounded-xl shadow-xs">
+            ➕ 進貨補貨登錄
+          </button>
+          <button onclick="openEditMaterialModal(null)" class="pos-btn bg-stone-800 hover:bg-stone-900 text-white text-xs font-bold px-3 py-2 rounded-xl shadow-xs">
+            🛠️ 新增品項
+          </button>
+        </div>
+      </div>
+
+      <!-- 4. 原料庫存卡片列表 (依分類顯示) -->
+      <div id="materialsContainer" class="grid grid-cols-1 md:grid-cols-2 gap-3"></div>
+
+    </section>
+
+    <!-- 【分頁 3：人流停留時間、籃數紀錄與下班歷史戰報】 -->
+    <section id="tab-analytics" class="hidden max-w-5xl mx-auto p-3 sm:p-5 space-y-4">
+      
+      <div class="flex flex-wrap items-center justify-between gap-2 bg-white border border-stone-200 p-3.5 rounded-2xl shadow-xs">
+        <div>
+          <h2 class="text-sm font-black text-stone-800">⏱️ 毫秒級人流停留時間 & 每籃產出分析</h2>
+          <p class="text-xs text-stone-500">透過每次按口味的時間差 ($\Delta t$)，免出餐鈕自動推算客人排隊停留時間與尖峰時段。</p>
+        </div>
+        <div class="flex items-center gap-2">
+          <button onclick="loadDemoDayData()" class="pos-btn bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-300 text-xs font-bold px-3 py-2 rounded-xl">
+            🧪 載入測試模擬數據
+          </button>
+          <button onclick="exportHistoryCsv()" class="pos-btn bg-stone-100 hover:bg-stone-200 text-stone-700 border border-stone-300 text-xs font-bold px-3 py-2 rounded-xl">
+            📥 匯出今日 CSV
+          </button>
+        </div>
+      </div>
+
+      <!-- 人流關鍵指標卡片 -->
+      <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+        <div class="bg-white border border-stone-200 p-3 rounded-2xl shadow-xs">
+          <span class="text-[11px] font-bold text-stone-400">推估今日客組數</span>
+          <div class="mt-1 flex items-baseline gap-1">
+            <strong id="anaCustomerGroups" class="mono text-xl font-black text-stone-800">0</strong>
+            <span class="text-xs text-stone-500 font-bold">組客人</span>
+          </div>
+          <span class="text-[10px] text-stone-400 block mt-0.5">4秒內連按視為同組客人</span>
+        </div>
+        <div class="bg-white border border-stone-200 p-3 rounded-2xl shadow-xs">
+          <span class="text-[11px] font-bold text-stone-400">平均每組購買</span>
+          <div class="mt-1 flex items-baseline gap-1">
+            <strong id="anaAvgSticksPerGroup" class="mono text-xl font-black text-amber-700">0.0</strong>
+            <span class="text-xs text-stone-500 font-bold">串/組</span>
+          </div>
+          <span id="anaAvgTicket" class="text-[10px] text-stone-400 block mt-0.5">平均客單價 $0</span>
+        </div>
+        <div class="bg-white border border-stone-200 p-3 rounded-2xl shadow-xs">
+          <span class="text-[11px] font-bold text-stone-400">排隊時段平均停留/出餐</span>
+          <div class="mt-1 flex items-baseline gap-1">
+            <strong id="anaAvgDwellSec" class="mono text-xl font-black text-emerald-700">--</strong>
+            <span class="text-xs text-stone-500 font-bold">秒/組</span>
+          </div>
+          <span class="text-[10px] text-stone-400 block mt-0.5">連續點單 (4~90秒內) 均值</span>
+        </div>
+        <div class="bg-white border border-stone-200 p-3 rounded-2xl shadow-xs">
+          <span class="text-[11px] font-bold text-stone-400">歷史每籃平均串數</span>
+          <div class="mt-1 flex items-baseline gap-1">
+            <strong id="anaBasketAvg" class="mono text-xl font-black text-stone-800">50.0</strong>
+            <span class="text-xs text-stone-500 font-bold">串/籃</span>
+          </div>
+          <span id="anaBasketSamples" class="text-[10px] text-stone-400 block mt-0.5">已累積 1 籃實測紀錄</span>
+        </div>
+      </div>
+
+      <!-- 時段人流熱力圖 & 籃數紀錄 -->
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <div class="bg-white border border-stone-200 p-4 rounded-2xl shadow-xs">
+          <h3 class="text-xs font-black text-stone-700 mb-3">📊 各時段銷售串數與人流分佈</h3>
+          <div id="hourlyChart" class="space-y-2 text-xs"></div>
+        </div>
+        <div class="bg-white border border-stone-200 p-4 rounded-2xl shadow-xs flex flex-col justify-between">
+          <div>
+            <h3 class="text-xs font-black text-stone-700 mb-2">🧺 空籃換新實測歷史 (自動算每籃幾串)</h3>
+            <div id="basketHistoryList" class="space-y-1.5 max-h-48 overflow-y-auto text-xs"></div>
+          </div>
+          <div class="mt-3 pt-2 border-t border-stone-100 text-[11px] text-stone-500">
+            💡 每次按下前台「空籃換新」，系統自動將該籃串數納入平均，並同步更新鳥蛋「以籃扣串」的換算比例。
+          </div>
+        </div>
+      </div>
+
+      <!-- 歷史下班結算戰報封存區 -->
+      <div class="bg-white border border-stone-200 p-4 rounded-2xl shadow-xs">
+        <h3 class="text-xs font-black text-stone-700 mb-2.5">🗂️ 歷史每日下班結算戰報紀錄</h3>
+        <div id="shiftArchiveList" class="space-y-2 text-xs"></div>
+      </div>
+
+    </section>
+
+    <!-- 【分頁 4：口味設定與動態成本拆解】 -->
+    <section id="tab-flavors" class="hidden max-w-5xl mx-auto p-3 sm:p-5 space-y-4">
+      <div class="bg-white border border-stone-200 p-4 rounded-2xl shadow-xs flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <h2 class="text-sm font-black text-stone-800">🍢 五種口味售價與即時動態成本結構</h2>
+          <p class="text-xs text-stone-500">單串成本 = 鳥蛋(由每籃成本÷每籃平均串數自動算出) + 綁定之醬料/配料/包材物料真實消耗成本。</p>
+        </div>
+        <button onclick="openFlavorModal(null)" class="pos-btn bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold px-3 py-2 rounded-xl shadow-xs">
+          ➕ 新增測試口味
+        </button>
+      </div>
+
+      <div id="flavorConfigList" class="grid grid-cols-1 md:grid-cols-2 gap-3"></div>
+    </section>
+
+    <!-- 【分頁 5：☁️ 雲端正式版同步與上線設定中心】 -->
+    <section id="tab-cloud" class="hidden max-w-5xl mx-auto p-3 sm:p-5 space-y-4">
+      
+      <!-- 1. Google Sheets 雲端資料庫連線設定 -->
+      <div class="bg-white border-2 border-amber-300 rounded-2xl p-4 sm:p-5 shadow-xs space-y-4">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-stone-100 pb-3">
+          <div>
+            <span class="bg-amber-100 text-amber-900 text-[11px] font-black px-2.5 py-0.5 rounded-full border border-amber-300">PRODUCTION CLOUD SYNC</span>
+            <h2 class="text-base font-black text-stone-900 mt-1">☁️ Google Sheets 雲端試算表雙向同步中心</h2>
+            <p class="text-xs text-stone-500 mt-0.5">
+              擺攤點單時 100% 離線秒回不卡頓；按下「下班結算」、「進貨」或「手動同步」時，自動將戰報、毫秒紀錄與最新庫存寫入您的 Google 試算表！
+            </p>
+          </div>
+          <div id="cloudLastSyncBox" class="text-xs font-bold text-stone-500 bg-stone-100 px-3 py-2 rounded-xl shrink-0 mono">
+            尚未同步
+          </div>
+        </div>
+
+        <div class="space-y-2">
+          <label class="text-xs font-black text-stone-700 block">
+            🔗 Google Apps Script (GAS) 網頁應用程式網址 (Web App URL)：
+          </label>
+          <div class="flex flex-col sm:flex-row gap-2">
+            <input type="url" id="gasUrlInput" placeholder="https://script.google.com/macros/s/......./exec" onchange="saveCloudUrl()" class="mono flex-1 bg-stone-50 border border-stone-300 rounded-xl px-3 py-2.5 text-xs font-bold text-stone-800 focus:outline-none focus:border-amber-500">
+            <button onclick="saveCloudUrl(true)" class="pos-btn bg-stone-800 hover:bg-stone-900 text-white font-black text-xs px-4 py-2.5 rounded-xl shrink-0">
+              💾 儲存網址並測試連線
+            </button>
+          </div>
+        </div>
+
+        <!-- 雲端同步手動按鈕列 -->
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-1">
+          <button onclick="pushStateToCloud('MANUAL_BACKUP')" class="pos-btn bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs p-3 rounded-xl shadow-xs flex items-center justify-center gap-2">
+            <span>⬆️ 立即上傳備份至試算表</span>
+            <span class="text-[10px] bg-emerald-800/40 px-1.5 py-0.5 rounded font-normal">庫存+成本+戰報</span>
+          </button>
+          <button onclick="pullStateFromCloud()" class="pos-btn bg-sky-600 hover:bg-sky-700 text-white font-black text-xs p-3 rounded-xl shadow-xs flex items-center justify-center gap-2">
+            <span>⬇️ 從試算表還原設定與庫存</span>
+            <span class="text-[10px] bg-sky-800/40 px-1.5 py-0.5 rounded font-normal">跨手機同步</span>
+          </button>
+          <button onclick="exportFullBackupJson()" class="pos-btn bg-stone-100 hover:bg-stone-200 text-stone-700 border border-stone-300 font-bold text-xs p-3 rounded-xl flex items-center justify-center gap-2">
+            <span>📦 下載完整系統備份檔 (.json)</span>
+          </button>
+        </div>
+
+        <div id="cloudSyncLogMsg" class="hidden text-xs font-bold p-3 rounded-xl border"></div>
+      </div>
+
+      <!-- 2. 一鍵複製 Google Apps Script 後端程式碼 & 3分鐘綁定教學 -->
+      <div class="bg-white border border-stone-200 rounded-2xl p-4 sm:p-5 shadow-xs space-y-3">
+        <div class="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <h3 class="text-sm font-black text-stone-800">📋 3 分鐘建立您的專屬 Google 試算表資料庫 (免伺服器費)</h3>
+            <p class="text-xs text-stone-500">只需在 Google 試算表貼上下方自動建表程式碼，系統就會自動幫您建立 5 個工作表分頁！</p>
+          </div>
+          <button onclick="copyGasScript()" class="pos-btn bg-amber-500 hover:bg-amber-600 text-white font-black text-xs px-3.5 py-2 rounded-xl shadow-xs">
+            📋 一鍵複製 GAS 後端程式碼
+          </button>
+        </div>
+
+        <ol class="text-xs text-stone-600 space-y-1.5 list-decimal list-inside bg-stone-50 p-3.5 rounded-xl border border-stone-200 leading-relaxed">
+          <li>打開 Google 雲端硬碟，新增一個空白的 <strong>Google 試算表</strong>（例如命名為「<strong>內灣煎鳥蛋營運資料庫</strong>」）。</li>
+          <li>點選試算表上方選單的 <strong>「擴充功能」 ➔ 「Apps Script」</strong>。</li>
+          <li>把原本裡面的 `myFunction` 刪掉，點擊右上方按鈕 <strong>「📋 一鍵複製 GAS 後端程式碼」</strong> 貼進去並按儲存（💾）。</li>
+          <li>點擊右上角藍色按鈕 <strong>「部署」 ➔ 「新增部署作業」</strong> ➔ 左上齒輪選 <strong>「網頁應用程式 (Web App)」</strong>。</li>
+          <li>「執行身分」選 <strong>「我」</strong>；「誰可以存取」務必選 <strong>「所有人 (Anyone)」</strong> ➔ 按下部署並授權。</li>
+          <li>複製產生的 <strong>網頁應用程式網址 (`https://script.google.com/macros/s/.../exec`)</strong>，貼回上方輸入框即完成！</li>
+        </ol>
+      </div>
+
+      <!-- 3. 正式開賣前：清除測試資料與系統初始化區 -->
+      <div class="bg-white border border-rose-200 rounded-2xl p-4 sm:p-5 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div>
+          <span class="bg-rose-100 text-rose-800 text-[10px] font-black px-2 py-0.5 rounded-md">正式擺攤前必備</span>
+          <h3 class="text-sm font-black text-stone-800 mt-1">🧹 清除測試點單紀錄（保留口味、店租與目前庫存設定）</h3>
+          <p class="text-xs text-stone-500 mt-0.5">
+            在您測試完按鈕手感、準備正式開賣第一天前按一下，系統會把測試按出來的假營收、假戰報清空，但<strong>完整保留您設定好的口味、店租與真實原料庫存</strong>！
+          </p>
+        </div>
+        <div class="flex items-center gap-2 shrink-0">
+          <label class="pos-btn bg-stone-100 hover:bg-stone-200 text-stone-700 border border-stone-300 font-bold text-xs px-3 py-2.5 rounded-xl cursor-pointer">
+            📂 匯入備份 (.json)
+            <input type="file" accept=".json" onchange="importFullBackupJson(event)" class="hidden">
+          </label>
+          <button onclick="clearTestSalesDataOnly()" class="pos-btn bg-rose-600 hover:bg-rose-700 text-white font-black text-xs px-4 py-2.5 rounded-xl shadow-xs">
+            🧹 清空測試營業數據
+          </button>
+        </div>
+      </div>
+
+    </section>
+
+  </main>
+
+  <!-- ================= 底部導覽列 (5 分頁) ================= -->
+  <nav class="bg-white border-t border-stone-200 px-1.5 py-1.5 shrink-0 z-20">
+    <div class="max-w-5xl mx-auto grid grid-cols-5 gap-1">
+      <button onclick="switchTab('pos')" id="nav-pos" class="nav-btn py-2 rounded-xl font-black text-[11px] sm:text-xs flex flex-col items-center gap-0.5 bg-amber-500 text-white shadow-xs">
+        <span>🍳 前台收銀</span>
+      </button>
+      <button onclick="switchTab('inventory')" id="nav-inventory" class="nav-btn py-2 rounded-xl font-bold text-[11px] sm:text-xs flex flex-col items-center gap-0.5 text-stone-600 hover:bg-stone-100">
+        <span>📦 庫存盤點</span>
+      </button>
+      <button onclick="switchTab('analytics')" id="nav-analytics" class="nav-btn py-2 rounded-xl font-bold text-[11px] sm:text-xs flex flex-col items-center gap-0.5 text-stone-600 hover:bg-stone-100">
+        <span>⏱️ 人流戰報</span>
+      </button>
+      <button onclick="switchTab('flavors')" id="nav-flavors" class="nav-btn py-2 rounded-xl font-bold text-[11px] sm:text-xs flex flex-col items-center gap-0.5 text-stone-600 hover:bg-stone-100">
+        <span>🍢 口味成本</span>
+      </button>
+      <button onclick="switchTab('cloud')" id="nav-cloud" class="nav-btn py-2 rounded-xl font-bold text-[11px] sm:text-xs flex flex-col items-center gap-0.5 text-stone-600 hover:bg-stone-100">
+        <span>☁️ 雲端正式版</span>
+      </button>
+    </div>
+  </nav>
+
+  <!-- ================= 彈窗 1：🏁 下班結算戰報 Modal ================= -->
+  <div id="closeOutModal" class="fixed inset-0 bg-stone-900/60 backdrop-blur-xs hidden items-center justify-center p-3 z-50">
+    <div class="bg-white border border-stone-200 rounded-3xl max-w-lg w-full p-5 shadow-xl space-y-4 max-h-[92vh] overflow-y-auto">
+      <div class="flex items-center justify-between border-b border-stone-200 pb-3">
+        <div>
+          <span class="text-[11px] font-bold text-rose-600 bg-rose-50 px-2 py-0.5 rounded-full border border-rose-200">END OF SHIFT</span>
+          <h3 class="text-lg font-black text-stone-900 mt-1">🏁 今日下班結算總戰報</h3>
+        </div>
+        <button onclick="closeModal('closeOutModal')" class="text-stone-400 hover:text-stone-700 text-xl font-bold px-2">✕</button>
+      </div>
+
+      <div class="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+        <div class="bg-stone-50 border border-stone-200 p-3 rounded-2xl">
+          <span class="text-[11px] font-bold text-stone-500 block">今日營業時數</span>
+          <strong id="coDuration" class="mono text-base font-black text-stone-800">00:00:00</strong>
+          <span id="coHoursDec" class="text-[10px] text-stone-400 block">共 0.00 小時</span>
+        </div>
+        <div class="bg-stone-50 border border-stone-200 p-3 rounded-2xl">
+          <span class="text-[11px] font-bold text-stone-500 block">今日總銷售串數</span>
+          <strong id="coSticks" class="mono text-base font-black text-amber-700">0 串</strong>
+          <span id="coEggsUsed" class="text-[10px] text-stone-400 block">約 0 顆鳥蛋</span>
+        </div>
+        <div class="bg-emerald-50 border border-emerald-200 p-3 rounded-2xl col-span-2 sm:col-span-1">
+          <span class="text-[11px] font-bold text-emerald-800 block">今日總營業額</span>
+          <strong id="coRevenue" class="mono text-lg font-black text-emerald-700">$0</strong>
+          <span id="coGroupCount" class="text-[10px] text-emerald-700/80 block">共 0 組客人</span>
+        </div>
+      </div>
+
+      <div class="bg-stone-50 border border-stone-200 rounded-2xl p-3.5 space-y-2 text-xs">
+        <div class="font-black text-stone-700 border-b border-stone-200 pb-1.5 flex justify-between">
+          <span>💰 成本與利潤精算明細</span>
+          <span class="text-stone-400 font-normal">依最新盤點消耗率計算</span>
+        </div>
+        <div class="flex justify-between text-stone-600">
+          <span>➕ 今日營業總收入</span>
+          <strong id="coRevRow" class="mono text-stone-800">$0</strong>
+        </div>
+        <div class="flex justify-between text-stone-600">
+          <span>➖ 食材、醬料、配料與包材成本</span>
+          <strong id="coCogsRow" class="mono text-rose-600">-$0</strong>
+        </div>
+        <div class="flex justify-between text-stone-600">
+          <span>➖ 破蛋/烤焦報廢損耗 (<span id="coWasteCnt">0</span>顆)</span>
+          <strong id="coWasteCostRow" class="mono text-rose-600">-$0</strong>
+        </div>
+        <div class="flex justify-between text-stone-600">
+          <span>➖ 今日攤提店租 (<span id="coRentModeText">日租</span>)</span>
+          <strong id="coRentRow" class="mono text-rose-600">-$0</strong>
+        </div>
+        <div class="border-t border-stone-300 pt-2 flex justify-between items-baseline">
+          <span class="text-sm font-black text-stone-900">🏆 今日真實淨利 (Net Profit)</span>
+          <strong id="coNetProfit" class="mono text-xl font-black text-amber-700">$0</strong>
+        </div>
+        <div class="flex justify-between text-[11px] text-stone-500 pt-0.5">
+          <span>⚡ 實際平均時薪 (淨利 ÷ 營業時數)</span>
+          <strong id="coHourlyWage" class="mono text-stone-800">$0 / 小時</strong>
+        </div>
+      </div>
+
+      <div>
+        <h4 class="text-xs font-black text-stone-700 mb-2">🍢 今日各口味銷售統計</h4>
+        <div id="coFlavorBreakdown" class="space-y-1.5 text-xs"></div>
+      </div>
+
+      <div class="bg-amber-50 border border-amber-200 p-3 rounded-2xl flex items-center justify-between gap-2">
+        <div class="text-xs text-amber-900">
+          <strong>💡 下班前盤點剩餘醬料了嗎？</strong>
+          <p class="text-[11px] text-amber-800/80">先輸入剩餘醬料克數，能讓今天的成本與毛利更精準！</p>
+        </div>
+        <button onclick="closeModal('closeOutModal'); switchTab('inventory');" class="pos-btn shrink-0 bg-white border border-amber-300 text-amber-900 font-bold text-xs px-3 py-2 rounded-xl shadow-xs">
+          📊 前往盤點庫存
+        </button>
+      </div>
+
+      <div class="flex items-center gap-2 pt-2">
+        <button onclick="closeModal('closeOutModal')" class="pos-btn flex-1 py-2.5 rounded-xl border border-stone-300 font-bold text-xs text-stone-600">繼續營業 / 取消</button>
+        <button id="confirmCloseOutBtn" onclick="confirmCloseOutAndReset()" class="pos-btn flex-2 bg-rose-600 hover:bg-rose-700 text-white font-black text-xs py-2.5 px-4 rounded-xl shadow-xs">
+          💾 確認封存今日戰報 (自動同步雲端)
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= 彈窗 2：進貨補貨登錄 Modal ================= -->
+  <div id="purchaseModal" class="fixed inset-0 bg-stone-900/60 backdrop-blur-xs hidden items-center justify-center p-3 z-50">
+    <div class="bg-white border border-stone-200 rounded-3xl max-w-md w-full p-5 shadow-xl space-y-4">
+      <div class="flex items-center justify-between border-b border-stone-200 pb-2.5">
+        <h3 class="text-base font-black text-stone-800">➕ 登錄進貨補貨 (自動算加權平均成本)</h3>
+        <button onclick="closeModal('purchaseModal')" class="text-stone-400 hover:text-stone-700 font-bold">✕</button>
+      </div>
+      <div class="space-y-3 text-xs">
+        <div>
+          <label class="font-bold text-stone-600 block mb-1">選擇進貨品項 (依分類排列)</label>
+          <select id="purMatId" onchange="onPurchaseMaterialChange()" class="w-full bg-stone-50 border border-stone-300 rounded-xl px-3 py-2 font-bold text-stone-800"></select>
+        </div>
+        <div id="purEggHint" class="hidden bg-amber-50 border border-amber-200 p-2.5 rounded-xl text-[11px] text-amber-900 leading-relaxed">
+          🥚 <strong>鳥蛋以「籃」進貨：</strong>直接輸入這次進了幾籃（例如 `2` 籃）與總金額（例如 `$1560`）。系統會自動除以歷史每籃平均串數，算出每賣 1 串的蛋成本！
+        </div>
+        <div class="grid grid-cols-2 gap-2.5">
+          <div>
+            <label class="font-bold text-stone-600 block mb-1">進貨數量 (<span id="purUnitLabel" class="text-amber-700">籃</span>)</label>
+            <input type="number" step="any" id="purQty" placeholder="例如: 2" class="mono w-full bg-stone-50 border border-stone-300 rounded-xl px-3 py-2 font-bold">
+          </div>
+          <div>
+            <label class="font-bold text-stone-600 block mb-1">本次進貨總金額 ($)</label>
+            <input type="number" step="any" id="purTotalCost" placeholder="例如: 1560" class="mono w-full bg-stone-50 border border-stone-300 rounded-xl px-3 py-2 font-bold">
+          </div>
+        </div>
+      </div>
+      <div class="flex justify-end gap-2 pt-2">
+        <button onclick="closeModal('purchaseModal')" class="px-4 py-2 rounded-xl border border-stone-300 text-xs font-bold text-stone-600">取消</button>
+        <button onclick="submitPurchase()" class="bg-emerald-600 text-white px-4 py-2 rounded-xl text-xs font-black">確認入庫</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= 彈窗 3：新增/編輯原料與多選口味綁定 Modal ================= -->
+  <div id="materialModal" class="fixed inset-0 bg-stone-900/60 backdrop-blur-xs hidden items-center justify-center p-3 z-50">
+    <div class="bg-white border border-stone-200 rounded-3xl max-w-md w-full p-5 shadow-xl space-y-3.5 max-h-[90vh] overflow-y-auto">
+      <div class="flex items-center justify-between border-b border-stone-200 pb-2.5">
+        <h3 id="matModalTitle" class="text-base font-black text-stone-800">⚙️ 編輯品項、分類與綁定規則</h3>
+        <button onclick="closeModal('materialModal')" class="text-stone-400 hover:text-stone-700 font-bold">✕</button>
+      </div>
+      <input type="hidden" id="editMatId">
+      <div class="space-y-3 text-xs">
+        <div class="grid grid-cols-3 gap-2">
+          <div class="col-span-2">
+            <label class="font-bold text-stone-600 block mb-1">品項名稱</label>
+            <input type="text" id="editMatName" placeholder="如: 特調章魚燒醬" class="w-full bg-stone-50 border border-stone-300 rounded-xl px-3 py-2 font-bold">
+          </div>
+          <div>
+            <label class="font-bold text-stone-600 block mb-1">庫存分類</label>
+            <select id="editMatCategory" class="w-full bg-stone-50 border border-stone-300 rounded-xl px-2.5 py-2 font-bold text-stone-800">
+              <option value="ingredient">🥚 食材</option>
+              <option value="sauce">🥫 醬料</option>
+              <option value="topping">✨ 配料</option>
+              <option value="supply">📦 包材物料</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-3 gap-2">
+          <div>
+            <label class="font-bold text-stone-600 block mb-1">庫存單位</label>
+            <input type="text" id="editMatUnit" placeholder="籃 / g / 個" class="w-full bg-stone-50 border border-stone-300 rounded-xl px-3 py-2 font-bold">
+          </div>
+          <div>
+            <label class="font-bold text-stone-600 block mb-1">目前庫存量</label>
+            <input type="number" step="any" id="editMatStock" class="mono w-full bg-stone-50 border border-stone-300 rounded-xl px-3 py-2 font-bold">
+          </div>
+          <div>
+            <label class="font-bold text-stone-600 block mb-1">每單位成本($)</label>
+            <input type="number" step="any" id="editMatUnitCost" class="mono w-full bg-stone-50 border border-stone-300 rounded-xl px-3 py-2 font-bold">
+          </div>
+        </div>
+
+        <div id="editMatUsageBox">
+          <label class="font-bold text-stone-600 block mb-1">目前平均每串消耗量 (收攤盤點後會自動學習修正)</label>
+          <input type="number" step="any" id="editMatUsage" class="mono w-full bg-stone-50 border border-stone-300 rounded-xl px-3 py-2 font-bold">
+        </div>
+        <div id="editMatEggNotice" class="hidden bg-amber-50 border border-amber-200 p-2.5 rounded-xl text-[11px] text-amber-900">
+          🥚 此品項為<strong>「鳥蛋（以籃計價）」</strong>，每串消耗的籃數由前台按下「🧺 空籃換新」的歷史每籃平均串數自動決定，無需手動填寫！
+        </div>
+
+        <div>
+          <div class="flex items-center justify-between mb-1.5">
+            <label class="font-bold text-stone-700">勾選會消耗此品項的口味 (支援多選 Checkbox)</label>
+            <div class="space-x-1">
+              <button type="button" onclick="toggleAllFlavorChecks(true)" class="text-[11px] text-amber-700 font-bold underline">全選</button>
+              <button type="button" onclick="toggleAllFlavorChecks(false)" class="text-[11px] text-stone-500 underline">全不選</button>
+            </div>
+          </div>
+          <div id="flavorCheckboxes" class="space-y-1.5 bg-stone-50 p-2.5 rounded-xl border border-stone-200 max-h-40 overflow-y-auto"></div>
+        </div>
+      </div>
+      <div class="flex justify-end gap-2 pt-2">
+        <button onclick="closeModal('materialModal')" class="px-4 py-2 rounded-xl border border-stone-300 text-xs font-bold text-stone-600">取消</button>
+        <button onclick="saveMaterialModal()" class="bg-amber-500 text-white px-4 py-2 rounded-xl text-xs font-black">儲存設定</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= 彈窗 4：新增/編輯口味 Modal ================= -->
+  <div id="flavorModal" class="fixed inset-0 bg-stone-900/60 backdrop-blur-xs hidden items-center justify-center p-3 z-50">
+    <div class="bg-white border border-stone-200 rounded-3xl max-w-sm w-full p-5 shadow-xl space-y-3.5">
+      <div class="flex items-center justify-between border-b border-stone-200 pb-2">
+        <h3 class="text-base font-black text-stone-800">🍢 口味設定</h3>
+        <button onclick="closeModal('flavorModal')" class="text-stone-400 hover:text-stone-700 font-bold">✕</button>
+      </div>
+      <input type="hidden" id="editFlavorId">
+      <div class="space-y-3 text-xs">
+        <div>
+          <label class="font-bold text-stone-600 block mb-1">口味名稱</label>
+          <input type="text" id="editFlavorName" class="w-full bg-stone-50 border border-stone-300 rounded-xl px-3 py-2 font-bold">
+        </div>
+        <div>
+          <label class="font-bold text-stone-600 block mb-1">副標題 / 備註</label>
+          <input type="text" id="editFlavorSub" placeholder="如: 客人DIY擠醬" class="w-full bg-stone-50 border border-stone-300 rounded-xl px-3 py-2 font-bold">
+        </div>
+        <div>
+          <label class="font-bold text-stone-600 block mb-1">每串售價 ($)</label>
+          <input type="number" id="editFlavorPrice" class="mono w-full bg-stone-50 border border-stone-300 rounded-xl px-3 py-2 font-bold">
+        </div>
+      </div>
+      <div class="flex justify-end gap-2 pt-2">
+        <button onclick="closeModal('flavorModal')" class="px-4 py-2 rounded-xl border border-stone-300 text-xs font-bold text-stone-600">取消</button>
+        <button onclick="saveFlavorModal()" class="bg-amber-500 text-white px-4 py-2 rounded-xl text-xs font-black">儲存口味</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ================= 0. 動態注入 PWA Manifest (支援手機「加入主畫面」全螢幕 App) =================
+    (function injectPwaManifest() {
+      const manifest = {
+        name: "煎鳥蛋 POS 與智慧庫存系統",
+        short_name: "煎鳥蛋POS",
+        start_url: "./index.html",
+        display: "standalone",
+        orientation: "portrait",
+        background_color: "#faf7f2",
+        theme_color: "#f59e0b",
+        icons: [{
+          src: "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='24' fill='%23f59e0b'/><text x='50' y='68' font-size='56' text-anchor='middle'>🍳</text></svg>",
+          sizes: "192x192",
+          type: "image/svg+xml"
+        }]
+      };
+      const blob = new Blob([JSON.stringify(manifest)], { type: 'application/json' });
+      const link = document.createElement('link');
+      link.rel = 'manifest';
+      link.href = URL.createObjectURL(blob);
+      document.head.appendChild(link);
+    })();
+
+    // ================= 1. 螢幕防休眠常亮控制 (Wake Lock API) =================
+    let wakeLockSentinel = null;
+    async function requestScreenWakeLock() {
+      if (!('wakeLock' in navigator)) return;
+      try {
+        wakeLockSentinel = await navigator.wakeLock.request('screen');
+        updateWakeLockUI(true);
+        wakeLockSentinel.addEventListener('release', () => updateWakeLockUI(false));
+      } catch (e) {
+        updateWakeLockUI(false);
+      }
+    }
+    async function releaseScreenWakeLock() {
+      if (wakeLockSentinel) {
+        try { await wakeLockSentinel.release(); } catch (e) {}
+        wakeLockSentinel = null;
+      }
+      updateWakeLockUI(false);
+    }
+    async function toggleWakeLockManual() {
+      if (wakeLockSentinel) {
+        await releaseScreenWakeLock();
+      } else {
+        await requestScreenWakeLock();
+      }
+    }
+    function updateWakeLockUI(isLocked) {
+      const el = document.getElementById('wakeLockBadge');
+      if (!el) return;
+      if (isLocked) {
+        el.textContent = '💡常亮中';
+        el.className = 'text-[10px] px-1.5 py-0.5 rounded-md font-bold bg-amber-100 text-amber-900 border border-amber-300 transition';
+      } else {
+        el.textContent = '🌙可休眠';
+        el.className = 'text-[10px] px-1.5 py-0.5 rounded-md font-bold bg-stone-200 text-stone-500 transition';
+      }
+    }
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible' && state && state.shift && state.shift.active) {
+        requestScreenWakeLock();
+      }
+    });
+
+    // ================= 2. 庫存分類定義 =================
+    const CATEGORIES = {
+      all:        { label: '全部品項', icon: '📋', badgeCls: 'bg-stone-100 text-stone-700 border-stone-300' },
+      ingredient: { label: '食材',     icon: '🥚', badgeCls: 'bg-amber-100 text-amber-900 border-amber-300' },
+      sauce:      { label: '醬料',     icon: '🥫', badgeCls: 'bg-rose-100 text-rose-900 border-rose-300' },
+      topping:    { label: '配料',     icon: '✨', badgeCls: 'bg-emerald-100 text-emerald-900 border-emerald-300' },
+      supply:     { label: '包材物料', icon: '📦', badgeCls: 'bg-sky-100 text-sky-900 border-sky-300' }
+    };
+    let currentCategoryFilter = 'all';
+
+    // ================= 3. 系統預設資料與狀態 (LocalStorage v7 Production) =================
+    const STORAGE_KEY = 'quail_egg_pos_prod_v7';
+
+    const DEFAULT_STATE = {
+      cloud: {
+        gasUrl: '',
+        lastSyncTime: null,
+        lastSyncStatus: '尚未設定'
+      },
+      shift: {
+        active: false,
+        startTime: null,
+        accumulatedMs: 0,
+        lastResumeTime: null
+      },
+      rent: {
+        mode: 'daily',
+        dailyAmount: 800,
+        monthlyAmount: 12000,
+        monthlyDays: 8
+      },
+      basket: {
+        currentIndex: 1,
+        currentSticks: 0,
+        currentWasteEggs: 0,
+        historySticks: [50]
+      },
+      multiplier: 1,
+      flavors: [
+        { id: 'f_orig',   name: '原味椒鹽',       sub: '客人 DIY 醬料區 (主力)', price: 35, isPrimary: true },
+        { id: 'f_tako',   name: '章魚燒風味',     sub: '美乃滋 + 柴魚片 + 海苔', price: 45, isPrimary: false },
+        { id: 'f_cheese', name: '香濃起司',       sub: '雙倍濃郁起司醬',         price: 45, isPrimary: false },
+        { id: 'f_floss',  name: '海苔芝麻肉鬆',   sub: '香酥肉鬆 + 海苔粉',      price: 45, isPrimary: false },
+        { id: 'f_hakka',  name: '客家蒜香油蔥酥', sub: '內灣特色古早味油蔥',     price: 45, isPrimary: false }
+      ],
+      materials: [
+        { id: 'm_egg', name: '生鳥蛋 (整籃進貨)', category: 'ingredient', unit: '籃', stock: 3.00, unitCost: 780, usagePerStick: 0.02, isEggBasket: true,
+          boundFlavors: ['f_orig','f_tako','f_cheese','f_floss','f_hakka'],
+          expectedSinceAudit: 0, histConsumed: 1.00, histSticks: 50, auditCount: 1 },
+        { id: 'm_oil', name: '耐炸食用油', category: 'ingredient', unit: 'ml', stock: 3000, unitCost: 0.08, usagePerStick: 2.5, isEggBasket: false,
+          boundFlavors: ['f_orig','f_tako','f_cheese','f_floss','f_hakka'],
+          expectedSinceAudit: 0, histConsumed: 250, histSticks: 100, auditCount: 1 },
+        { id: 'm_diy_sauce', name: 'DIY 醬料組 (醬油膏/甜辣/胡椒)', category: 'sauce', unit: 'g', stock: 2500, unitCost: 0.18, usagePerStick: 10, isEggBasket: false,
+          boundFlavors: ['f_orig','f_floss','f_hakka'],
+          expectedSinceAudit: 0, histConsumed: 600, histSticks: 60, auditCount: 1 },
+        { id: 'm_mayo', name: '日式美乃滋 / 章魚燒醬', category: 'sauce', unit: 'g', stock: 1800, unitCost: 0.25, usagePerStick: 14, isEggBasket: false,
+          boundFlavors: ['f_tako','f_floss'],
+          expectedSinceAudit: 0, histConsumed: 280, histSticks: 20, auditCount: 1 },
+        { id: 'm_cheese', name: '香濃起司醬', category: 'sauce', unit: 'g', stock: 1200, unitCost: 0.42, usagePerStick: 15, isEggBasket: false,
+          boundFlavors: ['f_cheese'],
+          expectedSinceAudit: 0, histConsumed: 300, histSticks: 20, auditCount: 1 },
+        { id: 'm_bonito', name: '柴魚片 & 海苔粉', category: 'topping', unit: 'g', stock: 600, unitCost: 0.85, usagePerStick: 4, isEggBasket: false,
+          boundFlavors: ['f_tako','f_floss'],
+          expectedSinceAudit: 0, histConsumed: 80, histSticks: 20, auditCount: 1 },
+        { id: 'm_floss', name: '香酥芝麻肉鬆', category: 'topping', unit: 'g', stock: 800, unitCost: 0.55, usagePerStick: 8, isEggBasket: false,
+          boundFlavors: ['f_floss'],
+          expectedSinceAudit: 0, histConsumed: 160, histSticks: 20, auditCount: 1 },
+        { id: 'm_hakka', name: '客家蒜香油蔥酥', category: 'topping', unit: 'g', stock: 750, unitCost: 0.65, usagePerStick: 7, isEggBasket: false,
+          boundFlavors: ['f_hakka'],
+          expectedSinceAudit: 0, histConsumed: 140, histSticks: 20, auditCount: 1 },
+        { id: 'm_box', name: '防油紙船盒 & 竹籤組', category: 'supply', unit: '組', stock: 500, unitCost: 1.6, usagePerStick: 1, isEggBasket: false,
+          boundFlavors: ['f_orig','f_tako','f_cheese','f_floss','f_hakka'],
+          expectedSinceAudit: 0, histConsumed: 100, histSticks: 100, auditCount: 1 }
+      ],
+      salesLogs: [],
+      wasteLogs: [],
+      basketLogs: [],
+      shiftArchives: [],
+      purchaseLogs: []
+    };
+
+    let state = loadState();
+
+    function loadState() {
+      try {
+        // 若 v7 尚無資料，嘗試承接 v6 資料
+        const raw = localStorage.getItem(STORAGE_KEY) || localStorage.getItem('quail_egg_pos_light_v6');
+        if (!raw) return JSON.parse(JSON.stringify(DEFAULT_STATE));
+        const parsed = JSON.parse(raw);
+        const merged = { ...JSON.parse(JSON.stringify(DEFAULT_STATE)), ...parsed };
+        if (!merged.cloud) merged.cloud = { gasUrl: '', lastSyncTime: null, lastSyncStatus: '尚未設定' };
+        if (!merged.purchaseLogs) merged.purchaseLogs = [];
+        return merged;
+      } catch (e) {
+        return JSON.parse(JSON.stringify(DEFAULT_STATE));
+      }
+    }
+
+    function saveState() {
+      syncEggBasketUsageRate();
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    }
+
+    // ================= 4. 鳥蛋「籃 ⟷ 串」自動同步引擎 =================
+    function getAvgSticksPerBasket() {
+      const arr = state.basket.historySticks;
+      if (!arr || arr.length === 0) return 50;
+      const sum = arr.reduce((a, b) => a + b, 0);
+      return Math.max(1, sum / arr.length);
+    }
+
+    function syncEggBasketUsageRate() {
+      const avgSticks = getAvgSticksPerBasket();
+      const basketPerStick = 1 / avgSticks;
+      state.materials.forEach(m => {
+        if (m.isEggBasket) {
+          m.usagePerStick = basketPerStick;
+        }
+      });
+    }
+
+    // ================= 5. 音效回饋 =================
+    let audioCtx = null;
+    function playClickTone(freq = 660, duration = 0.045) {
+      try {
+        if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+        gain.gain.setValueAtTime(0.12, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start();
+        osc.stop(audioCtx.currentTime + duration);
+      } catch (e) {}
+      if (navigator.vibrate) navigator.vibrate(18);
+    }
+
+    // ================= 6. 成本與店租計算核心 =================
+    function getEffectiveDailyRent() {
+      if (state.rent.mode === 'monthly') {
+        const days = Math.max(1, Number(state.rent.monthlyDays) || 1);
+        return Math.round((Number(state.rent.monthlyAmount) || 0) / days);
+      }
+      return Number(state.rent.dailyAmount) || 0;
+    }
+
+    function getFlavorUnitCost(flavorId) {
+      syncEggBasketUsageRate();
+      let cost = 0;
+      state.materials.forEach(m => {
+        if (m.boundFlavors && m.boundFlavors.includes(flavorId)) {
+          cost += (Number(m.unitCost) || 0) * (Number(m.usagePerStick) || 0);
+        }
+      });
+      return cost;
+    }
+
+    function getSingleEggCost() {
+      const eggMat = state.materials.find(m => m.isEggBasket);
+      const avgSticks = getAvgSticksPerBasket();
+      if (!eggMat) return 3.0;
+      return eggMat.unitCost / (avgSticks * 5);
+    }
+
+    function getTodaySummary() {
+      let totalSticks = 0;
+      let totalRev = 0;
+      let totalCogs = 0;
+
+      state.salesLogs.forEach(log => {
+        totalSticks += log.qty;
+        totalRev += log.revenue;
+        totalCogs += getFlavorUnitCost(log.flavorId) * log.qty;
+      });
+
+      const totalWasteEggs = state.wasteLogs.reduce((s, w) => s + w.eggs, 0);
+      const wasteCost = totalWasteEggs * getSingleEggCost();
+      const rentCost = getEffectiveDailyRent();
+      const netProfit = totalRev - totalCogs - wasteCost - rentCost;
+
+      return { totalSticks, totalRev, totalCogs, totalWasteEggs, wasteCost, rentCost, netProfit };
+    }
+
+    // ================= 7. 營業計時器 =================
+    function getShiftElapsedMs() {
+      let ms = state.shift.accumulatedMs || 0;
+      if (state.shift.active && state.shift.lastResumeTime) {
+        ms += (Date.now() - state.shift.lastResumeTime);
+      }
+      return ms;
+    }
+
+    function formatDuration(ms) {
+      const totalSec = Math.max(0, Math.floor(ms / 1000));
+      const h = String(Math.floor(totalSec / 3600)).padStart(2, '0');
+      const m = String(Math.floor((totalSec % 3600) / 60)).padStart(2, '0');
+      const s = String(totalSec % 60).padStart(2, '0');
+      return `${h}:${m}:${s}`;
+    }
+
+    function toggleShift() {
+      playClickTone(520, 0.06);
+      if (!state.shift.active) {
+        state.shift.active = true;
+        if (!state.shift.startTime) state.shift.startTime = Date.now();
+        state.shift.lastResumeTime = Date.now();
+        requestScreenWakeLock(); // 開始營業自動開啟螢幕防休眠常亮
+      } else {
+        state.shift.active = false;
+        if (state.shift.lastResumeTime) {
+          state.shift.accumulatedMs += (Date.now() - state.shift.lastResumeTime);
+          state.shift.lastResumeTime = null;
+        }
+        releaseScreenWakeLock();
+      }
+      saveState();
+      renderHeader();
+    }
+
+    setInterval(() => {
+      document.getElementById('shiftTimer').textContent = formatDuration(getShiftElapsedMs());
+    }, 500);
+
+    // ================= 8. 前台 POS 點單與空籃換新 =================
+    function setMultiplier(n) {
+      playClickTone(580, 0.03);
+      state.multiplier = n;
+      document.querySelectorAll('.mult-btn').forEach(btn => {
+        btn.className = 'mult-btn pos-btn flex-1 py-2 rounded-xl font-black text-sm border border-stone-300 bg-white text-stone-700';
+      });
+      const activeBtn = document.getElementById(`mult-${n}`);
+      if (activeBtn) {
+        activeBtn.className = 'mult-btn pos-btn flex-1 py-2 rounded-xl font-black text-sm border-2 border-amber-600 bg-amber-500 text-white shadow-xs';
+      }
+    }
+
+    function recordSale(flavorId, btnEl) {
+      const flavor = state.flavors.find(f => f.id === flavorId);
+      if (!flavor) return;
+
+      if (!state.shift.active && state.salesLogs.length === 0 && state.shift.accumulatedMs === 0) {
+        state.shift.active = true;
+        state.shift.startTime = Date.now();
+        state.shift.lastResumeTime = Date.now();
+        requestScreenWakeLock();
+      }
+
+      const qty = state.multiplier || 1;
+      const now = Date.now();
+      const unitCost = getFlavorUnitCost(flavorId);
+
+      const deducted = [];
+      state.materials.forEach(m => {
+        if (m.boundFlavors && m.boundFlavors.includes(flavorId)) {
+          const used = (Number(m.usagePerStick) || 0) * qty;
+          m.stock = Math.max(0, Number((m.stock - used).toFixed(4)));
+          m.expectedSinceAudit = Number(((m.expectedSinceAudit || 0) + used).toFixed(4));
+          deducted.push({ matId: m.id, used });
+        }
+      });
+
+      state.salesLogs.push({
+        id: 's_' + now + '_' + Math.random().toString(36).slice(2, 6),
+        ts: now,
+        flavorId: flavor.id,
+        flavorName: flavor.name,
+        qty,
+        revenue: flavor.price * qty,
+        costSnapshot: unitCost * qty,
+        deducted
+      });
+
+      state.basket.currentSticks += qty;
+
+      playClickTone(flavor.isPrimary ? 740 : 660, 0.05);
+      if (btnEl) {
+        btnEl.classList.remove('btn-flash');
+        void btnEl.offsetWidth;
+        btnEl.classList.add('btn-flash');
+      }
+
+      const d = new Date(now);
+      const timeStr = `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}:${String(d.getSeconds()).padStart(2,'0')}.${String(d.getMilliseconds()).padStart(3,'0')}`;
+      const pill = document.getElementById('lastActionPill');
+      pill.classList.remove('hidden');
+      document.getElementById('lastActionText').textContent = `${timeStr} ｜ ${flavor.name} +${qty}串`;
+
+      if (state.multiplier !== 1) setMultiplier(1);
+
+      saveState();
+      renderAll();
+    }
+
+    function undoLastSale() {
+      if (state.salesLogs.length === 0) return;
+      playClickTone(400, 0.07);
+      const last = state.salesLogs.pop();
+      if (last.deducted) {
+        last.deducted.forEach(item => {
+          const m = state.materials.find(x => x.id === item.matId);
+          if (m) {
+            m.stock = Number((m.stock + item.used).toFixed(4));
+            m.expectedSinceAudit = Math.max(0, Number(((m.expectedSinceAudit || 0) - item.used).toFixed(4)));
+          }
+        });
+      }
+      state.basket.currentSticks = Math.max(0, state.basket.currentSticks - last.qty);
+      document.getElementById('lastActionText').textContent = `已復原：${last.flavorName} (${last.qty}串)`;
+      saveState();
+      renderAll();
+    }
+
+    function recordEmptyBasket() {
+      const sticks = state.basket.currentSticks;
+      if (sticks <= 0) {
+        alert('本籃目前還沒有銷售紀錄喔！請先點選口味賣出後再按空籃換新。');
+        return;
+      }
+      playClickTone(880, 0.09);
+
+      state.basket.historySticks.push(sticks);
+      const newAvg = getAvgSticksPerBasket();
+
+      state.basketLogs.unshift({
+        basketNo: state.basket.currentIndex,
+        sticks: sticks,
+        wasteEggs: state.basket.currentWasteEggs,
+        newAvgAfter: Number(newAvg.toFixed(1)),
+        ts: Date.now()
+      });
+
+      state.basket.currentIndex += 1;
+      state.basket.currentSticks = 0;
+      state.basket.currentWasteEggs = 0;
+
+      syncEggBasketUsageRate();
+      document.getElementById('lastActionText').textContent = `🧺 空籃換新！本籃 ${sticks} 串，歷史均更新為 ${newAvg.toFixed(1)} 串/籃`;
+
+      saveState();
+      renderAll();
+    }
+
+    function recordWasteEgg(eggs = 1) {
+      playClickTone(320, 0.08);
+      state.wasteLogs.push({ ts: Date.now(), eggs });
+      state.basket.currentWasteEggs += eggs;
+
+      const eggMat = state.materials.find(m => m.isEggBasket);
+      const avgSticks = getAvgSticksPerBasket();
+      if (eggMat) {
+        const basketUsed = eggs / (avgSticks * 5);
+        eggMat.stock = Math.max(0, Number((eggMat.stock - basketUsed).toFixed(4)));
+        eggMat.expectedSinceAudit = Number(((eggMat.expectedSinceAudit || 0) + basketUsed).toFixed(4));
+      }
+      saveState();
+      renderAll();
+    }
+
+    // ================= 9. 🏁 下班結算戰報與自動雲端上傳 =================
+    function openCloseOutModal() {
+      playClickTone(600, 0.08);
+      if (state.shift.active) {
+        state.shift.active = false;
+        if (state.shift.lastResumeTime) {
+          state.shift.accumulatedMs += (Date.now() - state.shift.lastResumeTime);
+          state.shift.lastResumeTime = null;
+        }
+        releaseScreenWakeLock();
+        saveState();
+        renderHeader();
+      }
+
+      const elapsedMs = getShiftElapsedMs();
+      const hoursDec = elapsedMs / 3600000;
+      const sum = getTodaySummary();
+      const flow = analyzeTrafficFlow();
+
+      document.getElementById('coDuration').textContent = formatDuration(elapsedMs);
+      document.getElementById('coHoursDec').textContent = `共 ${hoursDec.toFixed(2)} 小時`;
+      document.getElementById('coSticks').textContent = `${sum.totalSticks} 串`;
+      document.getElementById('coEggsUsed').textContent = `約 ${sum.totalSticks * 5} 顆鳥蛋`;
+      document.getElementById('coRevenue').textContent = `$${Math.round(sum.totalRev).toLocaleString()}`;
+      document.getElementById('coGroupCount').textContent = `共 ${flow.groupCount} 組客人`;
+
+      document.getElementById('coRevRow').textContent = `+$${Math.round(sum.totalRev).toLocaleString()}`;
+      document.getElementById('coCogsRow').textContent = `-$${Math.round(sum.totalCogs).toLocaleString()}`;
+      document.getElementById('coWasteCnt').textContent = sum.totalWasteEggs;
+      document.getElementById('coWasteCostRow').textContent = `-$${Math.round(sum.wasteCost).toLocaleString()}`;
+      document.getElementById('coRentModeText').textContent = state.rent.mode === 'monthly' ? '月租折算' : '日租';
+      document.getElementById('coRentRow').textContent = `-$${Math.round(sum.rentCost).toLocaleString()}`;
+
+      const netEl = document.getElementById('coNetProfit');
+      netEl.textContent = `${sum.netProfit >= 0 ? '' : '-'}$${Math.abs(Math.round(sum.netProfit)).toLocaleString()}`;
+      netEl.className = `mono text-xl font-black ${sum.netProfit >= 0 ? 'text-amber-700' : 'text-rose-600'}`;
+
+      const wage = hoursDec > 0.01 ? Math.round(sum.netProfit / hoursDec) : 0;
+      document.getElementById('coHourlyWage').textContent = `$${wage.toLocaleString()} / 小時`;
+
+      const breakdownEl = document.getElementById('coFlavorBreakdown');
+      breakdownEl.innerHTML = '';
+      state.flavors.forEach(f => {
+        const fSticks = state.salesLogs.filter(l => l.flavorId === f.id).reduce((s, l) => s + l.qty, 0);
+        const fRev = fSticks * f.price;
+        const pct = sum.totalSticks > 0 ? Math.round((fSticks / sum.totalSticks) * 100) : 0;
+        breakdownEl.innerHTML += `
+          <div class="flex items-center justify-between bg-stone-50 border border-stone-200 px-3 py-1.5 rounded-xl">
+            <span class="font-bold text-stone-800">${f.name}</span>
+            <div class="flex items-center gap-3 mono">
+              <span class="text-stone-500">${pct}%</span>
+              <strong class="text-amber-800">${fSticks} 串</strong>
+              <strong class="text-emerald-700 w-16 text-right">$${fRev.toLocaleString()}</strong>
+            </div>
+          </div>
+        `;
+      });
+
+      const modal = document.getElementById('closeOutModal');
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+    }
+
+    async function confirmCloseOutAndReset() {
+      const btn = document.getElementById('confirmCloseOutBtn');
+      btn.disabled = true;
+      btn.textContent = '⏳ 正在封存並同步至雲端...';
+
+      const sum = getTodaySummary();
+      const elapsedMs = getShiftElapsedMs();
+      const hoursDec = elapsedMs / 3600000;
+      const wage = hoursDec > 0.01 ? Math.round(sum.netProfit / hoursDec) : 0;
+      const flow = analyzeTrafficFlow();
+
+      const now = new Date();
+      const dateStr = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+
+      const archiveRecord = {
+        id: 'arc_' + Date.now(),
+        dateStr,
+        durationStr: formatDuration(elapsedMs),
+        totalSticks: sum.totalSticks,
+        totalRev: Math.round(sum.totalRev),
+        totalCogs: Math.round(sum.totalCogs),
+        wasteCost: Math.round(sum.wasteCost),
+        rentCost: Math.round(sum.rentCost),
+        netProfit: Math.round(sum.netProfit),
+        hourlyWage: wage,
+        groupCount: flow.groupCount,
+        avgDwellSec: flow.avgDwellSec || 0,
+        avgBasketSticks: Number(getAvgSticksPerBasket().toFixed(1))
+      };
+
+      const logsSnapshot = [...state.salesLogs];
+      state.shiftArchives.unshift(archiveRecord);
+
+      // 若有綁定 Google Sheets 雲端網址，自動上傳今日戰報、毫秒紀錄與最新庫存
+      if (state.cloud && state.cloud.gasUrl) {
+        await pushStateToCloud('CLOSE_SHIFT', {
+          archiveRecord,
+          salesLogs: logsSnapshot
+        });
+      }
+
+      // 重置當日櫃檯
+      state.salesLogs = [];
+      state.wasteLogs = [];
+      state.shift = { active: false, startTime: null, accumulatedMs: 0, lastResumeTime: null };
+      state.basket.currentIndex = 1;
+      state.basket.currentSticks = 0;
+      state.basket.currentWasteEggs = 0;
+
+      saveState();
+      btn.disabled = false;
+      btn.textContent = '💾 確認封存今日戰報 (自動同步雲端)';
+      closeModal('closeOutModal');
+      renderAll();
+    }
+
+    // ================= 10. 分類庫存、進貨與下班盤點學習 =================
+    function setCategoryFilter(catKey) {
+      currentCategoryFilter = catKey;
+      renderInventoryTab();
+    }
+
+    function setRentMode(mode) {
+      state.rent.mode = mode;
+      saveState();
+      renderInventoryTab();
+      renderHeader();
+    }
+
+    function saveRentConfig() {
+      state.rent.dailyAmount = Number(document.getElementById('rentDailyVal').value) || 0;
+      state.rent.monthlyAmount = Number(document.getElementById('rentMonthlyVal').value) || 0;
+      state.rent.monthlyDays = Math.max(1, Number(document.getElementById('rentMonthlyDays').value) || 1);
+      saveState();
+      renderInventoryTab();
+      renderHeader();
+    }
+
+    function applyMaterialAudit(matId) {
+      const m = state.materials.find(x => x.id === matId);
+      const inputEl = document.getElementById(`auditInput_${matId}`);
+      if (!m || !inputEl) return;
+
+      const actualRemain = Number(inputEl.value);
+      if (isNaN(actualRemain) || actualRemain < 0) return;
+
+      const bookRemain = Number(m.stock) || 0;
+      const expectedUsed = Number(m.expectedSinceAudit) || 0;
+      const actualUsedSinceLastAudit = Math.max(0, expectedUsed + (bookRemain - actualRemain));
+
+      if (m.isEggBasket) {
+        const totalSticksSold = state.salesLogs.reduce((s, l) => s + l.qty, 0);
+        if (actualUsedSinceLastAudit > 0.05 && totalSticksSold >= 10) {
+          const impliedSticksPerBasket = Math.round(totalSticksSold / actualUsedSinceLastAudit);
+          if (impliedSticksPerBasket >= 15 && impliedSticksPerBasket <= 120) {
+            state.basket.historySticks.push(impliedSticksPerBasket);
+          }
+        }
+        m.stock = actualRemain;
+        m.expectedSinceAudit = 0;
+        m.auditCount = (m.auditCount || 1) + 1;
+        playClickTone(780, 0.07);
+        saveState();
+        renderAll();
+        return;
+      }
+
+      const relevantSticks = state.salesLogs
+        .filter(log => m.boundFlavors && m.boundFlavors.includes(log.flavorId))
+        .reduce((s, log) => s + log.qty, 0);
+
+      if (relevantSticks > 0 && actualUsedSinceLastAudit > 0) {
+        m.histConsumed = (Number(m.histConsumed) || 0) + actualUsedSinceLastAudit;
+        m.histSticks = (Number(m.histSticks) || 0) + relevantSticks;
+        m.usagePerStick = Number((m.histConsumed / m.histSticks).toFixed(4));
+        m.auditCount = (m.auditCount || 1) + 1;
+      }
+
+      m.stock = actualRemain;
+      m.expectedSinceAudit = 0;
+
+      playClickTone(780, 0.07);
+      saveState();
+      renderAll();
+    }
+
+    function openPurchaseModal(defaultMatId = null) {
+      const sel = document.getElementById('purMatId');
+      sel.innerHTML = '';
+
+      ['ingredient', 'sauce', 'topping', 'supply'].forEach(catKey => {
+        const catMats = state.materials.filter(m => m.category === catKey);
+        if (catMats.length > 0) {
+          const optGroup = document.createElement('optgroup');
+          optGroup.label = `${CATEGORIES[catKey].icon} ${CATEGORIES[catKey].label}`;
+          catMats.forEach(m => {
+            const opt = document.createElement('option');
+            opt.value = m.id;
+            opt.textContent = `${m.name} (現有 ${Number(m.stock).toFixed(m.isEggBasket ? 2 : 0)} ${m.unit})`;
+            optGroup.appendChild(opt);
+          });
+          sel.appendChild(optGroup);
+        }
+      });
+
+      if (defaultMatId) sel.value = defaultMatId;
+      onPurchaseMaterialChange();
+      document.getElementById('purQty').value = '';
+      document.getElementById('purTotalCost').value = '';
+      const modal = document.getElementById('purchaseModal');
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+    }
+
+    function onPurchaseMaterialChange() {
+      const matId = document.getElementById('purMatId').value;
+      const m = state.materials.find(x => x.id === matId);
+      if (m) {
+        document.getElementById('purUnitLabel').textContent = m.unit;
+        const hint = document.getElementById('purEggHint');
+        if (m.isEggBasket) hint.classList.remove('hidden');
+        else hint.classList.add('hidden');
+      }
+    }
+
+    async function submitPurchase() {
+      const matId = document.getElementById('purMatId').value;
+      const qty = Number(document.getElementById('purQty').value);
+      const totalCost = Number(document.getElementById('purTotalCost').value);
+      const m = state.materials.find(x => x.id === matId);
+      if (!m || qty <= 0 || totalCost < 0) return;
+
+      const oldTotalVal = Math.max(0, m.stock) * m.unitCost;
+      const newStock = m.stock + qty;
+      m.unitCost = Number(((oldTotalVal + totalCost) / newStock).toFixed(4));
+      m.stock = Number(newStock.toFixed(4));
+
+      const purRecord = {
+        ts: Date.now(),
+        dateStr: new Date().toLocaleString('zh-TW'),
+        matName: m.name,
+        category: m.category,
+        qty,
+        unit: m.unit,
+        totalCost,
+        newUnitCost: m.unitCost
+      };
+      state.purchaseLogs.unshift(purRecord);
+
+      saveState();
+      closeModal('purchaseModal');
+      renderAll();
+
+      if (state.cloud && state.cloud.gasUrl) {
+        pushStateToCloud('LOG_PURCHASE', { purchase: purRecord });
+      }
+    }
+
+    function openEditMaterialModal(matId = null) {
+      const m = matId ? state.materials.find(x => x.id === matId) : null;
+      document.getElementById('matModalTitle').textContent = m ? `⚙️ 編輯品項：${m.name}` : '🛠️ 新增庫存品項';
+      document.getElementById('editMatId').value = m ? m.id : '';
+      document.getElementById('editMatName').value = m ? m.name : '';
+      document.getElementById('editMatCategory').value = m ? (m.category || 'ingredient') : (currentCategoryFilter === 'all' ? 'sauce' : currentCategoryFilter);
+      document.getElementById('editMatUnit').value = m ? m.unit : 'g';
+      document.getElementById('editMatStock').value = m ? Number(m.stock).toFixed(m.isEggBasket ? 2 : 1) : 1000;
+      document.getElementById('editMatUnitCost').value = m ? m.unitCost : 0.2;
+      document.getElementById('editMatUsage').value = m ? m.usagePerStick : 10;
+
+      if (m && m.isEggBasket) {
+        document.getElementById('editMatUsageBox').classList.add('hidden');
+        document.getElementById('editMatEggNotice').classList.remove('hidden');
+      } else {
+        document.getElementById('editMatUsageBox').classList.remove('hidden');
+        document.getElementById('editMatEggNotice').classList.add('hidden');
+      }
+
+      const boxContainer = document.getElementById('flavorCheckboxes');
+      boxContainer.innerHTML = '';
+      state.flavors.forEach(f => {
+        const checked = m ? (m.boundFlavors && m.boundFlavors.includes(f.id)) : true;
+        boxContainer.innerHTML += `
+          <label class="flex items-center gap-2 p-1.5 rounded-lg hover:bg-stone-100 cursor-pointer">
+            <input type="checkbox" name="matFlavorCheck" value="${f.id}" ${checked ? 'checked' : ''} class="w-4 h-4 accent-amber-600 rounded">
+            <span class="font-bold text-stone-800">${f.name}</span>
+            <span class="text-[11px] text-stone-400 ml-auto">$${f.price}/串</span>
+          </label>
+        `;
+      });
+
+      const modal = document.getElementById('materialModal');
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+    }
+
+    function toggleAllFlavorChecks(flag) {
+      document.querySelectorAll('input[name="matFlavorCheck"]').forEach(cb => cb.checked = flag);
+    }
+
+    function saveMaterialModal() {
+      const id = document.getElementById('editMatId').value;
+      const name = document.getElementById('editMatName').value.trim();
+      const category = document.getElementById('editMatCategory').value;
+      const unit = document.getElementById('editMatUnit').value.trim() || '單位';
+      const stock = Number(document.getElementById('editMatStock').value) || 0;
+      const unitCost = Number(document.getElementById('editMatUnitCost').value) || 0;
+      const usagePerStick = Number(document.getElementById('editMatUsage').value) || 0;
+
+      if (!name) return;
+
+      const boundFlavors = Array.from(document.querySelectorAll('input[name="matFlavorCheck"]:checked')).map(cb => cb.value);
+
+      if (id) {
+        const m = state.materials.find(x => x.id === id);
+        if (m) {
+          m.name = name;
+          m.category = category;
+          m.unit = unit;
+          m.stock = stock;
+          m.unitCost = unitCost;
+          if (!m.isEggBasket) m.usagePerStick = usagePerStick;
+          m.boundFlavors = boundFlavors;
+        }
+      } else {
+        state.materials.push({
+          id: 'm_' + Date.now(),
+          name,
+          category,
+          unit,
+          stock,
+          unitCost,
+          usagePerStick,
+          isEggBasket: false,
+          boundFlavors,
+          expectedSinceAudit: 0,
+          histConsumed: usagePerStick * 20,
+          histSticks: 20,
+          auditCount: 1
+        });
+      }
+
+      saveState();
+      closeModal('materialModal');
+      renderAll();
+    }
+
+    function deleteMaterial(matId) {
+      const m = state.materials.find(x => x.id === matId);
+      if (!m) return;
+      if (m.isEggBasket) {
+        alert('「生鳥蛋」為系統核心籃數連動品項，不可刪除喔！');
+        return;
+      }
+      if (!confirm(`確定要刪除「${m.name}」嗎？刪除後將不再計入各口味成本。`)) return;
+      state.materials = state.materials.filter(x => x.id !== matId);
+      saveState();
+      renderAll();
+    }
+
+    // ================= 11. 口味新增與編輯 =================
+    function openFlavorModal(flavorId = null) {
+      const f = flavorId ? state.flavors.find(x => x.id === flavorId) : null;
+      document.getElementById('editFlavorId').value = f ? f.id : '';
+      document.getElementById('editFlavorName').value = f ? f.name : '';
+      document.getElementById('editFlavorSub').value = f ? (f.sub || '') : '';
+      document.getElementById('editFlavorPrice').value = f ? f.price : 45;
+      const modal = document.getElementById('flavorModal');
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+    }
+
+    function saveFlavorModal() {
+      const id = document.getElementById('editFlavorId').value;
+      const name = document.getElementById('editFlavorName').value.trim();
+      const sub = document.getElementById('editFlavorSub').value.trim();
+      const price = Number(document.getElementById('editFlavorPrice').value) || 35;
+      if (!name) return;
+
+      if (id) {
+        const f = state.flavors.find(x => x.id === id);
+        if (f) { f.name = name; f.sub = sub; f.price = price; }
+      } else {
+        const newId = 'f_' + Date.now();
+        state.flavors.push({ id: newId, name, sub, price, isPrimary: false });
+        state.materials.forEach(m => {
+          if (m.isEggBasket || m.id === 'm_box' || m.id === 'm_oil') {
+            m.boundFlavors.push(newId);
+          }
+        });
+      }
+      saveState();
+      closeModal('flavorModal');
+      renderAll();
+    }
+
+    function closeModal(id) {
+      const m = document.getElementById(id);
+      m.classList.add('hidden');
+      m.classList.remove('flex');
+    }
+
+    // ================= 12. 人流停留秒數推算引擎 =================
+    function analyzeTrafficFlow() {
+      const logs = [...state.salesLogs].sort((a, b) => a.ts - b.ts);
+      if (logs.length === 0) {
+        return { groupCount: 0, avgSticksPerGroup: 0, avgTicket: 0, avgDwellSec: null, hourlyMap: {} };
+      }
+
+      const groups = [];
+      let currGroup = { startTs: logs[0].ts, endTs: logs[0].ts, sticks: logs[0].qty, rev: logs[0].revenue };
+
+      for (let i = 1; i < logs.length; i++) {
+        const gapSec = (logs[i].ts - currGroup.endTs) / 1000;
+        if (gapSec <= 4.0) {
+          currGroup.endTs = logs[i].ts;
+          currGroup.sticks += logs[i].qty;
+          currGroup.rev += logs[i].revenue;
+        } else {
+          groups.push(currGroup);
+          currGroup = { startTs: logs[i].ts, endTs: logs[i].ts, sticks: logs[i].qty, rev: logs[i].revenue };
+        }
+      }
+      groups.push(currGroup);
+
+      const dwellIntervals = [];
+      for (let i = 1; i < groups.length; i++) {
+        const diffSec = (groups[i].startTs - groups[i - 1].startTs) / 1000;
+        if (diffSec > 4.0 && diffSec <= 90.0) {
+          dwellIntervals.push(diffSec);
+        }
+      }
+
+      const avgDwellSec = dwellIntervals.length > 0
+        ? (dwellIntervals.reduce((a, b) => a + b, 0) / dwellIntervals.length).toFixed(1)
+        : null;
+
+      const totalSticks = logs.reduce((s, l) => s + l.qty, 0);
+      const totalRev = logs.reduce((s, l) => s + l.revenue, 0);
+
+      const hourlyMap = {};
+      logs.forEach(l => {
+        const h = new Date(l.ts).getHours();
+        const key = `${String(h).padStart(2, '0')}:00`;
+        if (!hourlyMap[key]) hourlyMap[key] = { sticks: 0, rev: 0 };
+        hourlyMap[key].sticks += l.qty;
+        hourlyMap[key].rev += l.revenue;
+      });
+
+      return {
+        groupCount: groups.length,
+        avgSticksPerGroup: (totalSticks / groups.length).toFixed(1),
+        avgTicket: Math.round(totalRev / groups.length),
+        avgDwellSec,
+        hourlyMap
+      };
+    }
+
+    // ================= 13. ☁️ Google Sheets 雲端雙向同步引擎 =================
+    function showCloudMessage(msg, isSuccess = true) {
+      const box = document.getElementById('cloudSyncLogMsg');
+      if (!box) return;
+      box.classList.remove('hidden');
+      box.className = `text-xs font-bold p-3 rounded-xl border ${
+        isSuccess ? 'bg-emerald-50 border-emerald-300 text-emerald-900' : 'bg-rose-50 border-rose-300 text-rose-900'
+      }`;
+      box.textContent = msg;
+    }
+
+    function saveCloudUrl(testNow = false) {
+      const val = document.getElementById('gasUrlInput').value.trim();
+      state.cloud.gasUrl = val;
+      saveState();
+      renderCloudTab();
+      renderHeader();
+      if (testNow && val) {
+        pushStateToCloud('MANUAL_BACKUP');
+      }
+    }
+
+    async function pushStateToCloud(action = 'MANUAL_BACKUP', extraPayload = {}) {
+      const url = state.cloud && state.cloud.gasUrl ? state.cloud.gasUrl.trim() : '';
+      if (!url) {
+        showCloudMessage('⚠️ 請先在上方輸入 Google Apps Script 網頁應用程式網址！', false);
+        return false;
+      }
+
+      showCloudMessage('⏳ 正在與 Google Sheets 雲端試算表同步中...', true);
+
+      const payload = {
+        action,
+        ts: Date.now(),
+        materials: state.materials,
+        flavors: state.flavors,
+        rent: state.rent,
+        basket: state.basket,
+        shiftArchives: state.shiftArchives,
+        ...extraPayload
+      };
+
+      try {
+        await fetch(url, {
+          method: 'POST',
+          mode: 'no-cors',
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          body: JSON.stringify(payload)
+        });
+        const nowStr = new Date().toLocaleTimeString('zh-TW', { hour12: false });
+        state.cloud.lastSyncTime = nowStr;
+        state.cloud.lastSyncStatus = '已同步';
+        saveState();
+        renderCloudTab();
+        renderHeader();
+        showCloudMessage(`✅ 雲端同步指令已送出 (${nowStr})！請查看您的 Google 試算表分頁。`, true);
+        return true;
+      } catch (err) {
+        state.cloud.lastSyncStatus = '連線異常';
+        saveState();
+        renderHeader();
+        showCloudMessage(`❌ 雲端同步失敗：${err.message}（若現場沒網路，資料已安全保存在手機本地）`, false);
+        return false;
+      }
+    }
+
+    async function pullStateFromCloud() {
+      const url = state.cloud && state.cloud.gasUrl ? state.cloud.gasUrl.trim() : '';
+      if (!url) {
+        showCloudMessage('⚠️ 請先填入 Google Apps Script 網址！', false);
+        return;
+      }
+      showCloudMessage('⏳ 正在從 Google 試算表下載最新庫存與設定...', true);
+      try {
+        const res = await fetch(`${url}?action=PULL_STATE`);
+        const data = await res.json();
+        if (data && data.stateSnapshot) {
+          const snap = data.stateSnapshot;
+          if (snap.materials) state.materials = snap.materials;
+          if (snap.flavors) state.flavors = snap.flavors;
+          if (snap.rent) state.rent = snap.rent;
+          if (snap.basket && snap.basket.historySticks) state.basket.historySticks = snap.basket.historySticks;
+          if (snap.shiftArchives) state.shiftArchives = snap.shiftArchives;
+
+          state.cloud.lastSyncTime = new Date().toLocaleTimeString('zh-TW', { hour12: false });
+          state.cloud.lastSyncStatus = '已還原';
+          saveState();
+          renderAll();
+          showCloudMessage('✅ 已成功從 Google 試算表還原最新庫存、成本與設定！', true);
+        } else {
+          showCloudMessage('⚠️ 雲端試算表目前尚無備份快照，請先按一次「⬆️ 立即上傳備份」。', false);
+        }
+      } catch (err) {
+        showCloudMessage(`❌ 讀取雲端失敗：請確認 GAS 部署權限是否設為「所有人 (Anyone)」。`, false);
+      }
+    }
+
+    function exportFullBackupJson() {
+      const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `煎鳥蛋POS完整備份_${new Date().toISOString().slice(0,10)}.json`;
+      a.click();
+    }
+
+    function importFullBackupJson(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        try {
+          const imported = JSON.parse(e.target.result);
+          if (imported && imported.materials && imported.flavors) {
+            state = { ...JSON.parse(JSON.stringify(DEFAULT_STATE)), ...imported };
+            saveState();
+            renderAll();
+            showCloudMessage('✅ 備份檔 (.json) 匯入成功！所有庫存與設定已更新。', true);
+          }
+        } catch (err) {
+          alert('備份檔案格式不正確！');
+        }
+      };
+      reader.readAsText(file);
+    }
+
+    function clearTestSalesDataOnly() {
+      if (!confirm('確定要清空測試用的「今日點單紀錄、破蛋紀錄與歷史模擬戰報」嗎？\n\n（您設定好的 5 種口味售價、店租設定、以及原料庫存量都會完整保留！）')) return;
+      state.salesLogs = [];
+      state.wasteLogs = [];
+      state.basketLogs = [];
+      state.shiftArchives = [];
+      state.shift = { active: false, startTime: null, accumulatedMs: 0, lastResumeTime: null };
+      state.basket.currentIndex = 1;
+      state.basket.currentSticks = 0;
+      state.basket.currentWasteEggs = 0;
+      state.materials.forEach(m => m.expectedSinceAudit = 0);
+      saveState();
+      renderAll();
+      showCloudMessage('🧹 已清空所有測試銷售數據！系統已準備好正式開賣！', true);
+    }
+
+    // 一鍵複製 Google Apps Script 後端程式碼
+    function copyGasScript() {
+      const gasCode = `// =========================================================
+// 煎鳥蛋 POS 系統 - Google Sheets 雲端自動化後端 (GAS)
+// 貼上後請點選「部署」->「新增部署作業」->「網頁應用程式」-> 誰可以存取選「所有人」
+// =========================================================
+
+function doPost(e) {
+  var lock = LockService.getScriptLock();
+  lock.tryLock(10000);
+  try {
+    var data = JSON.parse(e.postData.contents);
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+
+    // 1. 永遠保存最新系統狀態快照 (供跨手機還原使用)
+    var metaSheet = getOrCreateSheet(ss, 'System_State', ['更新時間', 'JSON狀態快照']);
+    var snapshot = {
+      materials: data.materials,
+      flavors: data.flavors,
+      rent: data.rent,
+      basket: data.basket,
+      shiftArchives: data.shiftArchives
+    };
+    metaSheet.getRange(2, 1, 1, 2).setValues([[new Date(), JSON.stringify(snapshot)]]);
+
+    // 2. 更新「目前庫存與動態成本表」
+    if (data.materials && data.materials.length > 0) {
+      var invSheet = getOrCreateSheet(ss, 'Inventory_State', ['品項ID', '分類', '品項名稱', '目前剩餘庫存', '單位', '單位加權成本($)', '每串平均消耗量', '每串分攤成本($)', '累計盤點學習次數', '最後更新時間']);
+      if (invSheet.getLastRow() > 1) {
+        invSheet.getRange(2, 1, invSheet.getLastRow() - 1, 10).clearContent();
+      }
+      var invRows = data.materials.map(function(m) {
+        var costPerStick = (Number(m.unitCost) || 0) * (Number(m.usagePerStick) || 0);
+        return [m.id, m.category, m.name, m.stock, m.unit, m.unitCost, m.usagePerStick, Number(costPerStick.toFixed(2)), m.auditCount || 1, new Date()];
+      });
+      invSheet.getRange(2, 1, invRows.length, 10).setValues(invRows);
+    }
+
+    // 3. 若是「下班結算 (CLOSE_SHIFT)」，寫入每日總戰報與毫秒級點單明細
+    if (data.action === 'CLOSE_SHIFT' && data.archiveRecord) {
+      var sumSheet = getOrCreateSheet(ss, 'Daily_Summary', ['結算日期時間', '營業工時', '總銷售串數', '總營業額($)', '食材醬料包材成本($)', '破蛋報廢成本($)', '店租攤提($)', '今日真實淨利($)', '平均時薪($/h)', '客組數', '排隊平均停留秒數', '每籃平均串數']);
+      var r = data.archiveRecord;
+      sumSheet.appendRow([r.dateStr, r.durationStr, r.totalSticks, r.totalRev, r.totalCogs, r.wasteCost, r.rentCost, r.netProfit, r.hourlyWage, r.groupCount, r.avgDwellSec, r.avgBasketSticks]);
+
+      if (data.salesLogs && data.salesLogs.length > 0) {
+        var logSheet = getOrCreateSheet(ss, 'Sales_Logs', ['結算梯次', '毫秒時間戳', '點單時間', '口味名稱', '串數', '營收金額($)', '當下估算成本($)']);
+        var logRows = data.salesLogs.map(function(l) {
+          var d = new Date(l.ts);
+          var tStr = Utilities.formatDate(d, Session.getScriptTimeZone(), 'yyyy-MM-dd HH:mm:ss.SSS');
+          return [r.dateStr, l.ts, tStr, l.flavorName, l.qty, l.revenue, Number((l.costSnapshot || 0).toFixed(2))];
+        });
+        logSheet.getRange(logSheet.getLastRow() + 1, 1, logRows.length, 7).setValues(logRows);
+      }
+    }
+
+    // 4. 若是「進貨補貨 (LOG_PURCHASE)」，寫入進貨流水帳
+    if (data.action === 'LOG_PURCHASE' && data.purchase) {
+      var purSheet = getOrCreateSheet(ss, 'Purchase_Logs', ['進貨時間', '分類', '品項名稱', '進貨數量', '單位', '進貨總額($)', '更新後加權單價($)']);
+      var p = data.purchase;
+      purSheet.appendRow([p.dateStr, p.category, p.matName, p.qty, p.unit, p.totalCost, p.newUnitCost]);
+    }
+
+    return ContentService.createTextOutput(JSON.stringify({ ok: true })).setMimeType(ContentService.MimeType.JSON);
+  } catch (err) {
+    return ContentService.createTextOutput(JSON.stringify({ ok: false, error: err.toString() })).setMimeType(ContentService.MimeType.JSON);
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function doGet(e) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var metaSheet = ss.getSheetByName('System_State');
+  if (!metaSheet || metaSheet.getLastRow() < 2) {
+    return ContentService.createTextOutput(JSON.stringify({ ok: true, stateSnapshot: null })).setMimeType(ContentService.MimeType.JSON);
+  }
+  var raw = metaSheet.getRange(2, 2).getValue();
+  var parsed = raw ? JSON.parse(raw) : null;
+  return ContentService.createTextOutput(JSON.stringify({ ok: true, stateSnapshot: parsed })).setMimeType(ContentService.MimeType.JSON);
+}
+
+function getOrCreateSheet(ss, name, headers) {
+  var sheet = ss.getSheetByName(name);
+  if (!sheet) {
+    sheet = ss.insertSheet(name);
+    sheet.appendRow(headers);
+    sheet.getRange(1, 1, 1, headers.length).setFontWeight('bold').setBackground('#fef3c7');
+    sheet.setFrozenRows(1);
+  }
+  return sheet;
+}`;
+      navigator.clipboard.writeText(gasCode).then(() => {
+        showCloudMessage('📋 已成功複製 Google Apps Script 後端程式碼！請前往 Google 試算表 -> 擴充功能 -> Apps Script 貼上並部署。', true);
+      });
+    }
+
+    // ================= 14. 測試模擬數據與 CSV 匯出 =================
+    function loadDemoDayData() {
+      playClickTone(680, 0.08);
+      const baseTime = new Date();
+      baseTime.setHours(13, 0, 0, 0);
+      let cursor = baseTime.getTime();
+
+      state.salesLogs = [];
+      state.wasteLogs = [{ ts: cursor + 1800000, eggs: 3 }, { ts: cursor + 5400000, eggs: 2 }];
+      state.shift.active = false;
+      state.shift.accumulatedMs = 4.5 * 3600 * 1000;
+      state.basket.historySticks = [50, 48, 51];
+      state.basket.currentIndex = 3;
+      state.basket.currentSticks = 22;
+      syncEggBasketUsageRate();
+
+      const weights = [
+        { id: 'f_orig', w: 46 },
+        { id: 'f_tako', w: 18 },
+        { id: 'f_cheese', w: 14 },
+        { id: 'f_floss', w: 12 },
+        { id: 'f_hakka', w: 10 }
+      ];
+
+      function pickFlavor() {
+        let r = Math.random() * 100;
+        for (const item of weights) {
+          if (r < item.w) return state.flavors.find(f => f.id === item.id) || state.flavors[0];
+          r -= item.w;
+        }
+        return state.flavors[0];
+      }
+
+      for (let i = 0; i < 85; i++) {
+        const isQueue = (i > 15 && i < 65);
+        const gapMs = isQueue
+          ? (14 + Math.random() * 25) * 1000
+          : (95 + Math.random() * 180) * 1000;
+        cursor += gapMs;
+
+        const f = pickFlavor();
+        const qty = Math.random() < 0.65 ? 1 : 2;
+        state.salesLogs.push({
+          id: 'demo_' + i,
+          ts: cursor,
+          flavorId: f.id,
+          flavorName: f.name,
+          qty,
+          revenue: f.price * qty,
+          costSnapshot: getFlavorUnitCost(f.id) * qty,
+          deducted: []
+        });
+      }
+
+      saveState();
+      renderAll();
+    }
+
+    function exportHistoryCsv() {
+      if (state.salesLogs.length === 0) {
+        alert('目前尚無今日銷售紀錄可匯出！');
+        return;
+      }
+      let csv = '\uFEFF時間,毫秒時間戳,口味,串數,金額\n';
+      state.salesLogs.forEach(l => {
+        const d = new Date(l.ts);
+        const t = `${d.getHours()}:${d.getMinutes()}:${d.getSeconds()}.${d.getMilliseconds()}`;
+        csv += `${t},${l.ts},${l.flavorName},${l.qty},${l.revenue}\n`;
+      });
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `煎鳥蛋銷售紀錄_${Date.now()}.csv`;
+      a.click();
+    }
+
+    // ================= 15. 畫面渲染引擎 =================
+    function switchTab(tab) {
+      ['pos', 'inventory', 'analytics', 'flavors', 'cloud'].forEach(t => {
+        document.getElementById(`tab-${t}`).classList.toggle('hidden', t !== tab);
+        const nav = document.getElementById(`nav-${t}`);
+        if (t === tab) {
+          nav.className = 'nav-btn py-2 rounded-xl font-black text-[11px] sm:text-xs flex flex-col items-center gap-0.5 bg-amber-500 text-white shadow-xs';
+        } else {
+          nav.className = 'nav-btn py-2 rounded-xl font-bold text-[11px] sm:text-xs flex flex-col items-center gap-0.5 text-stone-600 hover:bg-stone-100';
+        }
+      });
+      renderAll();
+    }
+
+    function renderHeader() {
+      const sum = getTodaySummary();
+      document.getElementById('statSticks').textContent = sum.totalSticks;
+      document.getElementById('statRev').textContent = `$${Math.round(sum.totalRev).toLocaleString()}`;
+
+      const profitEl = document.getElementById('statProfit');
+      profitEl.textContent = `${sum.netProfit >= 0 ? '' : '-'}$${Math.abs(Math.round(sum.netProfit)).toLocaleString()}`;
+      profitEl.className = `mono text-sm font-black ${sum.netProfit >= 0 ? 'text-amber-900' : 'text-rose-600'}`;
+
+      const shiftBtn = document.getElementById('shiftBtn');
+      const shiftText = document.getElementById('shiftText');
+      const shiftDot = document.getElementById('shiftDot');
+      if (state.shift.active) {
+        shiftBtn.className = 'pos-btn flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl font-bold text-xs shadow-xs bg-amber-500 text-white';
+        shiftText.textContent = '營業中(暫停)';
+        shiftDot.className = 'w-2 h-2 rounded-full bg-white animate-ping';
+      } else {
+        shiftBtn.className = 'pos-btn flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl font-bold text-xs shadow-xs bg-emerald-600 text-white';
+        shiftText.textContent = state.shift.accumulatedMs > 0 ? '繼續營業' : '開始營業';
+        shiftDot.className = 'w-2 h-2 rounded-full bg-white';
+      }
+
+      // 雲端狀態燈
+      const hasUrl = state.cloud && state.cloud.gasUrl && state.cloud.gasUrl.startsWith('http');
+      const cDot = document.getElementById('cloudStatusDot');
+      const cText = document.getElementById('cloudStatusText');
+      const cBadge = document.getElementById('cloudStatusBadge');
+      if (hasUrl) {
+        cDot.className = 'w-1.5 h-1.5 rounded-full bg-emerald-500';
+        cText.textContent = state.cloud.lastSyncTime ? `雲端 ${state.cloud.lastSyncTime}` : '雲端已連線';
+        cBadge.className = 'pos-btn px-2 py-1 rounded-xl border text-[10px] font-bold flex items-center gap-1 bg-emerald-50 border-emerald-200 text-emerald-800';
+      } else {
+        cDot.className = 'w-1.5 h-1.5 rounded-full bg-stone-400';
+        cText.textContent = '綁定雲端';
+        cBadge.className = 'pos-btn px-2 py-1 rounded-xl border text-[10px] font-bold flex items-center gap-1 bg-stone-100 border-stone-200 text-stone-500';
+      }
+    }
+
+    function renderPosTab() {
+      const avgTarget = Math.round(getAvgSticksPerBasket());
+      const curr = state.basket.currentSticks;
+      const pct = Math.min(100, Math.round((curr / avgTarget) * 100));
+      const remain = Math.max(0, avgTarget - curr);
+
+      document.getElementById('basketIdx').textContent = state.basket.currentIndex;
+      document.getElementById('basketCurrent').textContent = curr;
+      document.getElementById('basketAvgTarget').textContent = avgTarget;
+      document.getElementById('basketRemainText').textContent = remain > 0 ? `預估還可串 ${remain} 串` : `已達歷史均值，見底請按空籃換新`;
+      document.getElementById('basketBar').style.width = `${pct}%`;
+
+      const eggMat = state.materials.find(m => m.isEggBasket);
+      const eggBadge = document.getElementById('eggStockBadge');
+      if (eggMat) {
+        const estSticksLeft = Math.round(eggMat.stock * getAvgSticksPerBasket());
+        eggBadge.textContent = `庫存剩 ${Number(eggMat.stock).toFixed(2)} 籃 (約 ${estSticksLeft} 串)`;
+      }
+
+      const totalWaste = state.wasteLogs.reduce((s, w) => s + w.eggs, 0);
+      document.getElementById('wasteCountBadge').textContent = totalWaste;
+
+      const container = document.getElementById('flavorGridContainer');
+      container.innerHTML = '';
+
+      const primaryFlavor = state.flavors[0];
+      const otherFlavors = state.flavors.slice(1);
+
+      if (primaryFlavor) {
+        const pCount = state.salesLogs.filter(l => l.flavorId === primaryFlavor.id).reduce((s, l) => s + l.qty, 0);
+        container.innerHTML += `
+          <button onclick="recordSale('${primaryFlavor.id}', this)" class="pos-btn w-full flex-1 min-h-[125px] bg-gradient-to-br from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white rounded-3xl p-4 shadow-md border-2 border-amber-600 flex items-center justify-between text-left">
+            <div>
+              <span class="bg-white/25 text-white text-[11px] font-black px-2.5 py-0.5 rounded-full">⭐ 主力人氣王 (超大盲按區)</span>
+              <div class="text-2xl sm:text-3xl font-black tracking-tight mt-1">${primaryFlavor.name}</div>
+              <div class="text-xs sm:text-sm text-amber-100 font-bold mt-0.5">${primaryFlavor.sub || '1串5顆 · 客人DIY醬料'}</div>
+            </div>
+            <div class="text-right shrink-0">
+              <div class="mono text-2xl sm:text-3xl font-black">$${primaryFlavor.price}</div>
+              <div class="mt-1 inline-block bg-black/20 px-3 py-1 rounded-xl text-xs font-extrabold mono">
+                今日已賣 ${pCount} 串
+              </div>
+            </div>
+          </button>
+        `;
+      }
+
+      if (otherFlavors.length > 0) {
+        let gridHtml = `<div class="grid grid-cols-2 gap-2.5 flex-1">`;
+        const cardStyles = [
+          'bg-white hover:bg-orange-50/60 border-2 border-orange-200 text-stone-800',
+          'bg-white hover:bg-yellow-50/60 border-2 border-amber-200 text-stone-800',
+          'bg-white hover:bg-emerald-50/60 border-2 border-emerald-200 text-stone-800',
+          'bg-white hover:bg-rose-50/60 border-2 border-rose-200 text-stone-800'
+        ];
+        otherFlavors.forEach((f, idx) => {
+          const count = state.salesLogs.filter(l => l.flavorId === f.id).reduce((s, l) => s + l.qty, 0);
+          const st = cardStyles[idx % cardStyles.length];
+          gridHtml += `
+            <button onclick="recordSale('${f.id}', this)" class="pos-btn ${st} rounded-2xl p-3.5 shadow-xs flex flex-col justify-between text-left min-h-[92px]">
+              <div class="flex items-start justify-between gap-1 w-full">
+                <span class="text-base sm:text-lg font-black leading-tight text-stone-900">${f.name}</span>
+                <span class="mono text-base font-black text-amber-700 shrink-0">$${f.price}</span>
+              </div>
+              <div class="flex items-end justify-between w-full mt-2">
+                <span class="text-[11px] text-stone-500 font-medium truncate max-w-[65%]">${f.sub || '1串5顆'}</span>
+                <span class="mono text-xs font-extrabold bg-stone-100 text-stone-700 px-2 py-0.5 rounded-lg border border-stone-200">
+                  ${count} 串
+                </span>
+              </div>
+            </button>
+          `;
+        });
+        gridHtml += `</div>`;
+        container.innerHTML += gridHtml;
+      }
+    }
+
+    function renderInventoryTab() {
+      const isDaily = state.rent.mode === 'daily';
+      document.getElementById('rentModeDailyBtn').className = isDaily
+        ? 'px-3 py-1.5 rounded-lg text-xs font-black bg-amber-500 text-white shadow-xs'
+        : 'px-3 py-1.5 rounded-lg text-xs font-bold text-stone-600';
+      document.getElementById('rentModeMonthlyBtn').className = !isDaily
+        ? 'px-3 py-1.5 rounded-lg text-xs font-black bg-amber-500 text-white shadow-xs'
+        : 'px-3 py-1.5 rounded-lg text-xs font-bold text-stone-600';
+
+      document.getElementById('rentDailyInputBox').classList.toggle('hidden', !isDaily);
+      document.getElementById('rentMonthlyInputBox').classList.toggle('hidden', isDaily);
+
+      document.getElementById('rentDailyVal').value = state.rent.dailyAmount;
+      document.getElementById('rentMonthlyVal').value = state.rent.monthlyAmount;
+      document.getElementById('rentMonthlyDays').value = state.rent.monthlyDays;
+      document.getElementById('effectiveDailyRentDisplay').textContent = `$${getEffectiveDailyRent().toLocaleString()}`;
+
+      syncEggBasketUsageRate();
+      const avgSticks = getAvgSticksPerBasket();
+      const eggMat = state.materials.find(m => m.isEggBasket);
+      const eggCostPerStick = eggMat ? (eggMat.unitCost / avgSticks) : 0;
+
+      document.getElementById('eggRuleAvgSticks').textContent = `${avgSticks.toFixed(1)} 串/籃`;
+      document.getElementById('eggRuleBasketPerStick').textContent = `${(1 / avgSticks).toFixed(4)} 籃`;
+      document.getElementById('eggRuleCostPerStick').textContent = `$${eggCostPerStick.toFixed(2)}`;
+
+      const filterBar = document.getElementById('categoryFilterBar');
+      filterBar.innerHTML = '';
+      Object.entries(CATEGORIES).forEach(([key, cfg]) => {
+        const count = key === 'all'
+          ? state.materials.length
+          : state.materials.filter(m => m.category === key).length;
+        const active = currentCategoryFilter === key;
+        filterBar.innerHTML += `
+          <button onclick="setCategoryFilter('${key}')" class="pos-btn shrink-0 px-3 py-1.5 rounded-xl text-xs font-black border transition flex items-center gap-1.5 ${
+            active
+              ? 'bg-amber-500 text-white border-amber-600 shadow-xs'
+              : 'bg-white text-stone-700 border-stone-200 hover:bg-stone-100'
+          }">
+            <span>${cfg.icon} ${cfg.label}</span>
+            <span class="mono text-[11px] px-1.5 py-0.2 rounded-full ${active ? 'bg-amber-700/40 text-white' : 'bg-stone-100 text-stone-600'}">${count}</span>
+          </button>
+        `;
+      });
+
+      const listEl = document.getElementById('materialsContainer');
+      listEl.innerHTML = '';
+
+      const filteredMats = currentCategoryFilter === 'all'
+        ? state.materials
+        : state.materials.filter(m => m.category === currentCategoryFilter);
+
+      filteredMats.forEach(m => {
+        const boundNames = state.flavors
+          .filter(f => m.boundFlavors && m.boundFlavors.includes(f.id))
+          .map(f => f.name);
+        const boundText = boundNames.length === state.flavors.length
+          ? '全部口味共用'
+          : (boundNames.join('、') || '未綁定口味');
+
+        const costPerStick = (Number(m.unitCost) || 0) * (Number(m.usagePerStick) || 0);
+        const catCfg = CATEGORIES[m.category] || CATEGORIES.ingredient;
+
+        const stockText = m.isEggBasket
+          ? `${Number(m.stock).toFixed(2)} ${m.unit} <span class="text-xs font-bold text-amber-700">(約 ${Math.round(m.stock * avgSticks)} 串)</span>`
+          : `${Math.round(m.stock).toLocaleString()} <span class="text-xs font-normal text-stone-500">${m.unit}</span>`;
+
+        const usageText = m.isEggBasket
+          ? `${Number(m.usagePerStick).toFixed(4)} 籃/串`
+          : `${Number(m.usagePerStick).toFixed(2)} ${m.unit} / 串`;
+
+        listEl.innerHTML += `
+          <div class="bg-white border ${m.isEggBasket ? 'border-amber-300 ring-1 ring-amber-200' : 'border-stone-200'} rounded-2xl p-4 shadow-xs flex flex-col justify-between gap-3">
+            <div>
+              <div class="flex items-start justify-between gap-2">
+                <div>
+                  <span class="inline-block text-[10px] font-black px-2 py-0.5 rounded-md border ${catCfg.badgeCls} mb-1">
+                    ${catCfg.icon} ${catCfg.label}
+                  </span>
+                  <h4 class="font-black text-stone-800 text-sm">${m.name}</h4>
+                  <p class="text-[11px] text-amber-800 font-bold mt-0.5">🔗 綁定：${boundText}</p>
+                </div>
+                <div class="flex items-center gap-1 shrink-0">
+                  <button onclick="openPurchaseModal('${m.id}')" class="text-[11px] bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 font-bold px-2 py-1 rounded-lg">
+                    ➕進貨
+                  </button>
+                  <button onclick="openEditMaterialModal('${m.id}')" class="text-[11px] bg-stone-100 hover:bg-stone-200 text-stone-700 font-bold px-2 py-1 rounded-lg">
+                    ⚙️編輯
+                  </button>
+                  ${!m.isEggBasket ? `<button onclick="deleteMaterial('${m.id}')" class="text-[11px] bg-rose-50 hover:bg-rose-100 text-rose-600 font-bold px-2 py-1 rounded-lg">🗑️</button>` : ''}
+                </div>
+              </div>
+
+              <div class="mt-3 grid grid-cols-3 gap-2 bg-stone-50 p-2.5 rounded-xl border border-stone-200 text-xs">
+                <div>
+                  <span class="text-[10px] text-stone-400 font-bold block">目前剩餘庫存</span>
+                  <strong class="mono text-sm font-black text-stone-800">${stockText}</strong>
+                </div>
+                <div>
+                  <span class="text-[10px] text-stone-400 font-bold block">平均每串消耗</span>
+                  <strong class="mono text-xs font-black text-amber-700">${usageText}</strong>
+                </div>
+                <div>
+                  <span class="text-[10px] text-stone-400 font-bold block">每串分攤成本</span>
+                  <strong class="mono text-sm font-black text-emerald-700">$${costPerStick.toFixed(2)}</strong>
+                </div>
+              </div>
+            </div>
+
+            <div class="pt-2 border-t border-stone-100 flex items-center justify-between gap-2">
+              <div class="text-[11px] text-stone-500">
+                下班實秤剩餘 (${m.unit})：
+                <span class="text-[10px] text-stone-400 block">已校正 ${m.auditCount || 1} 次 · 單價 $${Number(m.unitCost).toFixed(2)}/${m.unit}</span>
+              </div>
+              <div class="flex items-center gap-1.5">
+                <input type="number" step="any" id="auditInput_${m.id}" value="${m.isEggBasket ? Number(m.stock).toFixed(2) : Math.round(m.stock)}" class="mono w-20 bg-stone-50 border border-stone-300 rounded-xl px-2.5 py-1 text-xs font-bold text-stone-800">
+                <button onclick="applyMaterialAudit('${m.id}')" class="pos-btn bg-amber-500 hover:bg-amber-600 text-white text-xs font-black px-2.5 py-1.5 rounded-xl shadow-xs">
+                  更新並學成本
+                </button>
+              </div>
+            </div>
+          </div>
+        `;
+      });
+    }
+
+    function renderAnalyticsTab() {
+      const flow = analyzeTrafficFlow();
+      const avgBasket = getAvgSticksPerBasket();
+
+      document.getElementById('anaCustomerGroups').textContent = flow.groupCount;
+      document.getElementById('anaAvgSticksPerGroup').textContent = flow.avgSticksPerGroup;
+      document.getElementById('anaAvgTicket').textContent = `平均客單價 $${flow.avgTicket}`;
+      document.getElementById('anaAvgDwellSec').textContent = flow.avgDwellSec ? flow.avgDwellSec : '--';
+      document.getElementById('anaBasketAvg').textContent = avgBasket.toFixed(1);
+      document.getElementById('anaBasketSamples').textContent = `已累積 ${state.basket.historySticks.length} 籃實測紀錄`;
+
+      const chartEl = document.getElementById('hourlyChart');
+      const keys = Object.keys(flow.hourlyMap).sort();
+      if (keys.length === 0) {
+        chartEl.innerHTML = `<p class="text-stone-400 py-6 text-center">尚無今日點單數據</p>`;
+      } else {
+        const maxSticks = Math.max(...keys.map(k => flow.hourlyMap[k].sticks), 1);
+        chartEl.innerHTML = keys.map(k => {
+          const item = flow.hourlyMap[k];
+          const w = Math.round((item.sticks / maxSticks) * 100);
+          return `
+            <div class="flex items-center gap-2">
+              <span class="mono w-12 font-bold text-stone-600">${k}</span>
+              <div class="flex-1 h-4 bg-stone-100 rounded-full overflow-hidden border border-stone-200">
+                <div class="h-full bg-amber-500 rounded-full" style="width:${w}%"></div>
+              </div>
+              <span class="mono w-24 text-right font-bold text-stone-700">${item.sticks}串 ($${item.rev})</span>
+            </div>
+          `;
+        }).join('');
+      }
+
+      const bList = document.getElementById('basketHistoryList');
+      if (state.basketLogs.length === 0) {
+        bList.innerHTML = `<div class="text-stone-400 py-4 text-center">今日尚未按過「🧺 空籃換新」按鈕 (目前均值 ${avgBasket.toFixed(1)} 串/籃)</div>`;
+      } else {
+        bList.innerHTML = state.basketLogs.map(b => {
+          const d = new Date(b.ts);
+          const t = `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+          return `
+            <div class="flex items-center justify-between bg-stone-50 border border-stone-200 px-3 py-1.5 rounded-xl">
+              <span class="font-bold text-stone-700">第 ${b.basketNo} 籃 (${t} 清空)</span>
+              <span class="mono font-black text-amber-700">實烤 ${b.sticks} 串 (破蛋${b.wasteEggs}顆)</span>
+              <span class="mono text-[11px] text-stone-500">更新均 ${b.newAvgAfter}串</span>
+            </div>
+          `;
+        }).join('');
+      }
+
+      const arcEl = document.getElementById('shiftArchiveList');
+      if (!state.shiftArchives || state.shiftArchives.length === 0) {
+        arcEl.innerHTML = `<div class="text-stone-400 py-4 text-center">尚無歷史封存戰報。下班時點擊頂部「🏁 下班結算」即可封存並同步至 Google 試算表！</div>`;
+      } else {
+        arcEl.innerHTML = state.shiftArchives.map(a => `
+          <div class="flex flex-wrap items-center justify-between gap-2 bg-stone-50 border border-stone-200 px-3.5 py-2.5 rounded-xl">
+            <div>
+              <strong class="mono text-stone-800">${a.dateStr}</strong>
+              <span class="text-stone-500 ml-2">工時 ${a.durationStr} · 客組 ${a.groupCount} 組</span>
+            </div>
+            <div class="flex items-center gap-3 mono">
+              <span class="font-bold text-stone-700">${a.totalSticks} 串</span>
+              <span class="font-bold text-emerald-700">營收 $${a.totalRev}</span>
+              <span class="text-rose-600 text-[11px]">成本 $${a.totalCogs + a.wasteCost + a.rentCost}</span>
+              <strong class="text-amber-800 bg-amber-100 px-2 py-0.5 rounded-lg">淨利 $${a.netProfit}</strong>
+            </div>
+          </div>
+        `).join('');
+      }
+    }
+
+    function renderFlavorsTab() {
+      const container = document.getElementById('flavorConfigList');
+      container.innerHTML = '';
+
+      state.flavors.forEach(f => {
+        const unitCost = getFlavorUnitCost(f.id);
+        const profit = f.price - unitCost;
+        const margin = f.price > 0 ? Math.round((profit / f.price) * 100) : 0;
+
+        const boundMats = state.materials.filter(m => m.boundFlavors && m.boundFlavors.includes(f.id));
+        const matBreakdown = boundMats.map(m => {
+          const c = (Number(m.unitCost) || 0) * (Number(m.usagePerStick) || 0);
+          const catIcon = CATEGORIES[m.category] ? CATEGORIES[m.category].icon : '';
+          return `${catIcon}${m.name} ($${c.toFixed(1)})`;
+        }).join(' + ');
+
+        container.innerHTML += `
+          <div class="bg-white border border-stone-200 rounded-2xl p-4 shadow-xs flex flex-col justify-between gap-2.5">
+            <div class="flex items-start justify-between">
+              <div>
+                <div class="flex items-center gap-1.5">
+                  <h4 class="font-black text-base text-stone-800">${f.name}</h4>
+                  ${f.isPrimary ? '<span class="text-[10px] bg-amber-100 text-amber-800 font-black px-2 py-0.5 rounded-full">巨型主按鈕</span>' : ''}
+                </div>
+                <p class="text-xs text-stone-500">${f.sub || ''}</p>
+              </div>
+              <button onclick="openFlavorModal('${f.id}')" class="text-xs bg-stone-100 hover:bg-stone-200 text-stone-700 font-bold px-2.5 py-1 rounded-xl">
+                ✏️ 改價/改名
+              </button>
+            </div>
+
+            <div class="grid grid-cols-3 gap-2 bg-stone-50 p-2.5 rounded-xl border border-stone-200 text-xs">
+              <div>
+                <span class="text-[10px] text-stone-400 font-bold block">每串售價</span>
+                <strong class="mono text-sm font-black text-stone-800">$${f.price}</strong>
+              </div>
+              <div>
+                <span class="text-[10px] text-stone-400 font-bold block">動態單串成本</span>
+                <strong class="mono text-sm font-black text-rose-600">$${unitCost.toFixed(2)}</strong>
+              </div>
+              <div>
+                <span class="text-[10px] text-stone-400 font-bold block">單串毛利 (毛利率)</span>
+                <strong class="mono text-sm font-black text-emerald-700">$${profit.toFixed(1)} (${margin}%)</strong>
+              </div>
+            </div>
+
+            <div class="text-[11px] text-stone-500 leading-relaxed">
+              <strong>成本組成：</strong>${matBreakdown || '尚未綁定原料'}
+            </div>
+          </div>
+        `;
+      });
+    }
+
+    function renderCloudTab() {
+      const inp = document.getElementById('gasUrlInput');
+      if (inp && state.cloud) {
+        inp.value = state.cloud.gasUrl || '';
+      }
+      const box = document.getElementById('cloudLastSyncBox');
+      if (box && state.cloud) {
+        box.textContent = state.cloud.lastSyncTime
+          ? `最後同步：${state.cloud.lastSyncTime} (${state.cloud.lastSyncStatus})`
+          : '尚未同步';
+      }
+    }
+
+    function renderAll() {
+      renderHeader();
+      renderPosTab();
+      renderInventoryTab();
+      renderAnalyticsTab();
+      renderFlavorsTab();
+      renderCloudTab();
+    }
+
+    renderAll();
+  </script>
+</body>
+</html>
