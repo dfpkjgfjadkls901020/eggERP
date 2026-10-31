@@ -657,30 +657,43 @@
   </div>
 
   <!-- ================= 彈窗 4：新增/編輯口味 Modal ================= -->
+  <!-- ================= 彈窗 4：新增/編輯口味與內容物配方 Modal ================= -->
   <div id="flavorModal" class="fixed inset-0 bg-stone-900/60 backdrop-blur-xs hidden items-center justify-center p-3 z-50">
-    <div class="bg-white border border-stone-200 rounded-3xl max-w-sm w-full p-5 shadow-xl space-y-3.5">
+    <div class="bg-white border border-stone-200 rounded-3xl max-w-md w-full p-5 shadow-xl space-y-3.5 max-h-[90vh] overflow-y-auto">
       <div class="flex items-center justify-between border-b border-stone-200 pb-2">
-        <h3 class="text-base font-black text-stone-800">🍢 口味設定</h3>
+        <h3 id="flavorModalTitle" class="text-base font-black text-stone-800">🍢 口味與內容物配方設定</h3>
         <button onclick="closeModal('flavorModal')" class="text-stone-400 hover:text-stone-700 font-bold">✕</button>
       </div>
       <input type="hidden" id="editFlavorId">
       <div class="space-y-3 text-xs">
-        <div>
-          <label class="font-bold text-stone-600 block mb-1">口味名稱</label>
-          <input type="text" id="editFlavorName" class="w-full bg-stone-50 border border-stone-300 rounded-xl px-3 py-2 font-bold">
+        <div class="grid grid-cols-3 gap-2">
+          <div class="col-span-2">
+            <label class="font-bold text-stone-600 block mb-1">口味名稱</label>
+            <input type="text" id="editFlavorName" placeholder="例如：椒鹽原味" class="w-full bg-stone-50 border border-stone-300 rounded-xl px-3 py-2 font-bold">
+          </div>
+          <div>
+            <label class="font-bold text-stone-600 block mb-1">每串售價 ($)</label>
+            <input type="number" id="editFlavorPrice" class="mono w-full bg-stone-50 border border-stone-300 rounded-xl px-3 py-2 font-bold">
+          </div>
         </div>
         <div>
           <label class="font-bold text-stone-600 block mb-1">副標題 / 備註</label>
           <input type="text" id="editFlavorSub" placeholder="如: 客人DIY擠醬" class="w-full bg-stone-50 border border-stone-300 rounded-xl px-3 py-2 font-bold">
         </div>
+        <!-- 自訂前台按鈕大小 -->
+        <label class="flex items-center justify-between bg-amber-50 border border-amber-200 p-2.5 rounded-xl cursor-pointer">
+          <span class="font-black text-amber-950">📐 在前台設為「巨型橫幅大按鈕」（不勾則為兩欄並排）</span>
+          <input type="checkbox" id="editFlavorPrimary" class="w-4 h-4 accent-amber-600">
+        </label>
+        <!-- 隨時變更此口味包含哪些內容物(原料/醬料/包材) -->
         <div>
-          <label class="font-bold text-stone-600 block mb-1">每串售價 ($)</label>
-          <input type="number" id="editFlavorPrice" class="mono w-full bg-stone-50 border border-stone-300 rounded-xl px-3 py-2 font-bold">
+          <label class="font-bold text-stone-700 block mb-1.5">🧪 勾選此口味的內容物（消耗哪些食材/醬料/配料/包材）：</label>
+          <div id="flavorMatCheckList" class="space-y-1.5 bg-stone-50 p-2.5 rounded-xl border border-stone-200 max-h-44 overflow-y-auto"></div>
         </div>
       </div>
       <div class="flex justify-end gap-2 pt-2">
         <button onclick="closeModal('flavorModal')" class="px-4 py-2 rounded-xl border border-stone-300 text-xs font-bold text-stone-600">取消</button>
-        <button onclick="saveFlavorModal()" class="bg-amber-500 text-white px-4 py-2 rounded-xl text-xs font-black">儲存口味</button>
+        <button onclick="saveFlavorModal()" class="bg-amber-500 text-white px-4 py-2 rounded-xl text-xs font-black">儲存口味與配方</button>
       </div>
     </div>
   </div>
@@ -1624,38 +1637,102 @@
     }
 
     // ================= 11. 口味新增與編輯 =================
+    // 開啟口味設定（同時載入所有庫存原料供勾選內容物）
     function openFlavorModal(flavorId = null) {
       const f = flavorId ? state.flavors.find(x => x.id === flavorId) : null;
+      document.getElementById('flavorModalTitle').textContent = f ? `✏️ 編輯口味：${f.name}` : '➕ 新增口味與配方';
       document.getElementById('editFlavorId').value = f ? f.id : '';
       document.getElementById('editFlavorName').value = f ? f.name : '';
       document.getElementById('editFlavorSub').value = f ? (f.sub || '') : '';
       document.getElementById('editFlavorPrice').value = f ? f.price : 45;
+      document.getElementById('editFlavorPrimary').checked = f ? Boolean(f.isPrimary) : false;
+
+      // 產生內容物勾選清單
+      const listEl = document.getElementById('flavorMatCheckList');
+      listEl.innerHTML = state.materials.map(m => {
+        const isChecked = f
+          ? (m.boundFlavors && m.boundFlavors.includes(f.id))
+          : (m.isEggBasket || m.category === 'supply' || m.id === 'm_oil');
+        const cat = CATEGORIES[m.category] || CATEGORIES.ingredient;
+        const unitCostStick = ((Number(m.unitCost) || 0) * (Number(m.usagePerStick) || 0)).toFixed(1);
+        return `
+          <label class="flex items-center gap-2 p-1.5 rounded-lg hover:bg-stone-100 cursor-pointer">
+            <input type="checkbox" name="flavorMatItem" value="${m.id}" ${isChecked ? 'checked' : ''} class="w-4 h-4 accent-amber-600 rounded">
+            <span class="text-[10px] px-1.5 py-0.5 rounded border ${cat.badgeCls}">${cat.icon}</span>
+            <span class="font-bold text-stone-800">${m.name}</span>
+            <span class="mono text-[11px] text-stone-400 ml-auto">$${unitCostStick}/串</span>
+          </label>
+        `;
+      }).join('');
+
       const modal = document.getElementById('flavorModal');
       modal.classList.remove('hidden');
       modal.classList.add('flex');
     }
 
+    // 儲存口味與內容物綁定
     function saveFlavorModal() {
       const id = document.getElementById('editFlavorId').value;
       const name = document.getElementById('editFlavorName').value.trim();
       const sub = document.getElementById('editFlavorSub').value.trim();
       const price = Number(document.getElementById('editFlavorPrice').value) || 35;
+      const isPrimary = document.getElementById('editFlavorPrimary').checked;
       if (!name) return;
+
+      const selectedMatIds = Array.from(document.querySelectorAll('input[name="flavorMatItem"]:checked')).map(cb => cb.value);
+      let targetId = id;
 
       if (id) {
         const f = state.flavors.find(x => x.id === id);
-        if (f) { f.name = name; f.sub = sub; f.price = price; }
+        if (f) { f.name = name; f.sub = sub; f.price = price; f.isPrimary = isPrimary; }
       } else {
-        const newId = 'f_' + Date.now();
-        state.flavors.push({ id: newId, name, sub, price, isPrimary: false });
-        state.materials.forEach(m => {
-          if (m.isEggBasket || m.id === 'm_box' || m.id === 'm_oil') {
-            m.boundFlavors.push(newId);
-          }
-        });
+        targetId = 'f_' + Date.now();
+        state.flavors.push({ id: targetId, name, sub, price, isPrimary });
       }
+
+      // 雙向同步更新所有原料的 boundFlavors（變更口味內容物）
+      state.materials.forEach(m => {
+        if (!Array.isArray(m.boundFlavors)) m.boundFlavors = [];
+        const has = m.boundFlavors.includes(targetId);
+        const want = selectedMatIds.includes(m.id);
+        if (want && !has) m.boundFlavors.push(targetId);
+        if (!want && has) m.boundFlavors = m.boundFlavors.filter(fid => fid !== targetId);
+      });
+
       saveState();
       closeModal('flavorModal');
+      renderAll();
+    }
+
+    // 刪除口味
+    function deleteFlavor(flavorId) {
+      const f = state.flavors.find(x => x.id === flavorId);
+      if (!f || !confirm(`確定要刪除「${f.name}」口味嗎？`)) return;
+      state.flavors = state.flavors.filter(x => x.id !== flavorId);
+      state.materials.forEach(m => {
+        if (m.boundFlavors) m.boundFlavors = m.boundFlavors.filter(id => id !== flavorId);
+      });
+      saveState();
+      renderAll();
+    }
+
+    // 調整口味在前台的位置順序 (dir = -1 往前移, +1 往後移)
+    function moveFlavorOrder(idx, dir) {
+      const target = idx + dir;
+      if (target < 0 || target >= state.flavors.length) return;
+      const temp = state.flavors[idx];
+      state.flavors[idx] = state.flavors[target];
+      state.flavors[target] = temp;
+      saveState();
+      renderAll();
+    }
+
+    // 一鍵切換前台按鈕為「巨型橫幅」或「兩欄並排」
+    function toggleFlavorSize(flavorId) {
+      const f = state.flavors.find(x => x.id === flavorId);
+      if (!f) return;
+      f.isPrimary = !f.isPrimary;
+      saveState();
       renderAll();
     }
 
@@ -2106,59 +2183,51 @@ function getOrCreateSheet(ss, name, headers) {
       document.getElementById('wasteCountBadge').textContent = totalWaste;
 
       const container = document.getElementById('flavorGridContainer');
+      // 改用 2 欄網格容器，巨型按鈕佔 2 格 (col-span-2)，一般按鈕佔 1 格 (col-span-1)
+      container.className = 'grid grid-cols-2 gap-2.5';
       container.innerHTML = '';
 
-      const primaryFlavor = state.flavors[0];
-      const otherFlavors = state.flavors.slice(1);
+      const cardStyles = [
+        'bg-white hover:bg-orange-50/60 border-2 border-orange-200 text-stone-800',
+        'bg-white hover:bg-yellow-50/60 border-2 border-amber-200 text-stone-800',
+        'bg-white hover:bg-emerald-50/60 border-2 border-emerald-200 text-stone-800',
+        'bg-white hover:bg-rose-50/60 border-2 border-rose-200 text-stone-800'
+      ];
 
-      if (primaryFlavor) {
-        const pCount = state.salesLogs.filter(l => l.flavorId === primaryFlavor.id).reduce((s, l) => s + l.qty, 0);
-        container.innerHTML += `
-          <button onclick="recordSale('${primaryFlavor.id}', this)" class="pos-btn w-full min-h-[105px] bg-gradient-to-br from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white rounded-3xl p-4 shadow-md border-2 border-amber-600 flex items-center justify-between text-left">
-            <div>
-              <span class="bg-white/25 text-white text-[11px] font-black px-2.5 py-0.5 rounded-full">⭐ 主力人氣王 (超大盲按區)</span>
-              <div class="text-2xl sm:text-3xl font-black tracking-tight mt-1">${primaryFlavor.name}</div>
-              <div class="text-xs sm:text-sm text-amber-100 font-bold mt-0.5">${primaryFlavor.sub || '1串5顆 · 客人DIY醬料'}</div>
-            </div>
-            <div class="text-right shrink-0">
-              <div class="mono text-2xl sm:text-3xl font-black">$${primaryFlavor.price}</div>
-              <div class="mt-1 inline-block bg-black/20 px-3 py-1 rounded-xl text-xs font-extrabold mono">
-                今日已賣 ${pCount} 串
+      state.flavors.forEach((f, idx) => {
+        const count = state.salesLogs.filter(l => l.flavorId === f.id).reduce((s, l) => s + l.qty, 0);
+        if (f.isPrimary) {
+          // 巨型全寬按鈕 (col-span-2)
+          container.innerHTML += `
+            <button onclick="recordSale('${f.id}', this)" class="pos-btn col-span-2 w-full min-h-[100px] bg-gradient-to-br from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white rounded-3xl p-4 shadow-md border-2 border-amber-600 flex items-center justify-between text-left">
+              <div>
+                <span class="bg-white/25 text-white text-[10px] font-black px-2 py-0.5 rounded-full">⭐ 主力大按鈕 (#${idx + 1})</span>
+                <div class="text-2xl sm:text-3xl font-black tracking-tight mt-1">${f.name}</div>
+                <div class="text-xs sm:text-sm text-amber-100 font-bold mt-0.5">${f.sub || '1串5顆'}</div>
               </div>
-            </div>
-          </button>
-        `;
-      }
-
-      if (otherFlavors.length > 0) {
-        let gridHtml = `<div class="grid grid-cols-2 gap-2.5">`;
-        const cardStyles = [
-          'bg-white hover:bg-orange-50/60 border-2 border-orange-200 text-stone-800',
-          'bg-white hover:bg-yellow-50/60 border-2 border-amber-200 text-stone-800',
-          'bg-white hover:bg-emerald-50/60 border-2 border-emerald-200 text-stone-800',
-          'bg-white hover:bg-rose-50/60 border-2 border-rose-200 text-stone-800'
-        ];
-        otherFlavors.forEach((f, idx) => {
-          const count = state.salesLogs.filter(l => l.flavorId === f.id).reduce((s, l) => s + l.qty, 0);
+              <div class="text-right shrink-0">
+                <div class="mono text-2xl sm:text-3xl font-black">$${f.price}</div>
+                <div class="mt-1 inline-block bg-black/20 px-3 py-1 rounded-xl text-xs font-extrabold mono">今日已賣 ${count} 串</div>
+              </div>
+            </button>
+          `;
+        } else {
+          // 標準半寬按鈕 (col-span-1)
           const st = cardStyles[idx % cardStyles.length];
-          gridHtml += `
-            <button onclick="recordSale('${f.id}', this)" class="pos-btn ${st} rounded-2xl p-3.5 shadow-xs flex flex-col justify-between text-left min-h-[88px]">
+          container.innerHTML += `
+            <button onclick="recordSale('${f.id}', this)" class="pos-btn col-span-1 ${st} rounded-2xl p-3.5 shadow-xs flex flex-col justify-between text-left min-h-[88px]">
               <div class="flex items-start justify-between gap-1 w-full">
                 <span class="text-base sm:text-lg font-black leading-tight text-stone-900">${f.name}</span>
                 <span class="mono text-base font-black text-amber-700 shrink-0">$${f.price}</span>
               </div>
               <div class="flex items-end justify-between w-full mt-2">
                 <span class="text-[11px] text-stone-500 font-medium truncate max-w-[65%]">${f.sub || '1串5顆'}</span>
-                <span class="mono text-xs font-extrabold bg-stone-100 text-stone-700 px-2 py-0.5 rounded-lg border border-stone-200">
-                  ${count} 串
-                </span>
+                <span class="mono text-xs font-extrabold bg-stone-100 text-stone-700 px-2 py-0.5 rounded-lg border border-stone-200">${count} 串</span>
               </div>
             </button>
           `;
-        });
-        gridHtml += `</div>`;
-        container.innerHTML += gridHtml;
-      }
+        }
+      });
     }
 
     function renderInventoryTab() {
@@ -2397,7 +2466,7 @@ function getOrCreateSheet(ss, name, headers) {
       const container = document.getElementById('flavorConfigList');
       container.innerHTML = '';
 
-      state.flavors.forEach(f => {
+      state.flavors.forEach((f, idx) => {
         const unitCost = getFlavorUnitCost(f.id);
         const profit = f.price - unitCost;
         const margin = f.price > 0 ? Math.round((profit / f.price) * 100) : 0;
@@ -2411,16 +2480,33 @@ function getOrCreateSheet(ss, name, headers) {
 
         container.innerHTML += `
           <div class="bg-white border border-stone-200 rounded-2xl p-4 shadow-xs flex flex-col justify-between gap-2.5">
-            <div class="flex items-start justify-between">
+            <div class="flex items-start justify-between gap-2">
               <div>
-                <div class="flex items-center gap-1.5">
+                <div class="flex items-center gap-1.5 flex-wrap">
+                  <span class="mono text-xs font-black bg-stone-800 text-white px-2 py-0.5 rounded-md">#${idx + 1}</span>
                   <h4 class="font-black text-base text-stone-800">${f.name}</h4>
-                  ${f.isPrimary ? '<span class="text-[10px] bg-amber-100 text-amber-800 font-black px-2 py-0.5 rounded-full">巨型主按鈕</span>' : ''}
                 </div>
-                <p class="text-xs text-stone-500">${f.sub || ''}</p>
+                <p class="text-xs text-stone-500 mt-0.5">${f.sub || ''}</p>
               </div>
-              <button onclick="openFlavorModal('${f.id}')" class="text-xs bg-stone-100 hover:bg-stone-200 text-stone-700 font-bold px-2.5 py-1 rounded-xl">
-                ✏️ 改價/改名
+              <div class="flex items-center gap-1 shrink-0">
+                <button onclick="openFlavorModal('${f.id}')" class="text-xs bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 font-bold px-2.5 py-1 rounded-xl">
+                  ✏️ 改配方/售價
+                </button>
+                <button onclick="deleteFlavor('${f.id}')" class="text-xs bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 font-bold px-2 py-1 rounded-xl">
+                  🗑️
+                </button>
+              </div>
+            </div>
+
+            <!-- 前台按鈕位置與大小控制列 -->
+            <div class="flex items-center justify-between bg-amber-50/60 border border-amber-200/80 px-2.5 py-1.5 rounded-xl text-xs">
+              <div class="flex items-center gap-1">
+                <span class="text-[11px] font-bold text-stone-600 mr-1">前台位置:</span>
+                <button onclick="moveFlavorOrder(${idx}, -1)" ${idx === 0 ? 'disabled class="opacity-30 px-2 py-0.5"' : 'class="pos-btn bg-white border border-stone-300 px-2 py-0.5 rounded-lg font-bold"'}>⬆️ 前移</button>
+                <button onclick="moveFlavorOrder(${idx}, 1)" ${idx === state.flavors.length - 1 ? 'disabled class="opacity-30 px-2 py-0.5"' : 'class="pos-btn bg-white border border-stone-300 px-2 py-0.5 rounded-lg font-bold"'}>⬇️ 後移</button>
+              </div>
+              <button onclick="toggleFlavorSize('${f.id}')" class="pos-btn px-2 py-0.5 rounded-lg font-black text-[11px] border ${f.isPrimary ? 'bg-amber-500 text-white border-amber-600' : 'bg-white text-stone-700 border-stone-300'}">
+                ${f.isPrimary ? '📐 巨型全寬' : '📏 兩欄並排'}
               </button>
             </div>
 
@@ -2434,13 +2520,13 @@ function getOrCreateSheet(ss, name, headers) {
                 <strong class="mono text-sm font-black text-rose-600">$${unitCost.toFixed(2)}</strong>
               </div>
               <div>
-                <span class="text-[10px] text-stone-400 font-bold block">單串毛利 (毛利率)</span>
+                <span class="text-[10px] text-stone-400 font-bold block">單串毛利</span>
                 <strong class="mono text-sm font-black text-emerald-700">$${profit.toFixed(1)} (${margin}%)</strong>
               </div>
             </div>
 
             <div class="text-[11px] text-stone-500 leading-relaxed">
-              <strong>成本組成：</strong>${matBreakdown || '尚未綁定原料'}
+              <strong>🧪 內容物組成：</strong>${matBreakdown || '尚未勾選內容物（點右上角「改配方」勾選）'}
             </div>
           </div>
         `;
