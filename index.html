@@ -26,7 +26,7 @@
     }
     .mono { font-family: 'JetBrains Mono', monospace; }
     
-    /* 實體按鈕按壓回饋1 */
+    /* 實體按鈕按壓回饋 */
     .pos-btn {
       transition: transform 0.06s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.06s ease;
     }
@@ -45,10 +45,10 @@
     ::-webkit-scrollbar-thumb { background: #d6cec2; border-radius: 99px; }
   </style>
 </head>
-<body class="min-h-screen flex flex-col overflow-y-auto pb-20">
+<body class="min-h-screen flex flex-col overflow-y-auto pb-24">
 
-  <!-- ================= 頂部極簡狀態列 ================= -->
-  <header class="bg-white border-b border-stone-200 px-2.5 py-2 shrink-0 shadow-xs z-20">
+  <!-- ================= 頂部極簡狀態列 (固定於頂部) ================= -->
+  <header class="sticky top-0 bg-white/95 backdrop-blur-xs border-b border-stone-200 px-2.5 py-2 shrink-0 shadow-xs z-30">
     <div class="max-w-5xl mx-auto flex flex-wrap items-center justify-between gap-1.5">
       
       <!-- 左側：營業計時、防休眠指示燈、下班結算 -->
@@ -59,7 +59,6 @@
         </button>
         <div class="bg-stone-100 border border-stone-200 px-2 py-1 rounded-xl flex items-center gap-1">
           <span id="shiftTimer" class="mono text-xs font-extrabold text-stone-800">00:00:00</span>
-          <!-- 螢幕常亮防休眠指示燈 -->
           <button onclick="toggleWakeLockManual()" id="wakeLockBadge" title="點擊切換螢幕防休眠常亮" class="text-[10px] px-1.5 py-0.5 rounded-md font-bold bg-stone-200 text-stone-500 transition">
             🌙可休眠
           </button>
@@ -69,7 +68,7 @@
         </button>
       </div>
 
-      <!-- 中間：最後點擊毫秒紀錄 (無彈窗干擾) -->
+      <!-- 中間：最後點擊毫秒紀錄 -->
       <div id="lastActionPill" class="hidden md:flex items-center gap-1.5 bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-full text-[11px] text-amber-900 font-bold">
         <span class="w-1.5 h-1.5 rounded-full bg-amber-500 animate-ping"></span>
         <span id="lastActionText" class="mono">準備就緒</span>
@@ -99,13 +98,13 @@
     </div>
   </header>
 
-  <!-- ================= 主內容區 (五分頁切換) ================= -->
+  <!-- ================= 主內容區 (五分頁切換，支援手機滑動) ================= -->
   <main class="flex-1">
     
-    <!-- 【分頁 1：前台收銀 POS (極簡 + 原味超巨型按鈕)】 -->
+    <!-- 【分頁 1：前台收銀 POS】 -->
     <section id="tab-pos" class="max-w-5xl mx-auto p-2.5 sm:p-4 flex flex-col gap-2.5">
       
-      <!-- 1. 鳥蛋籃數進度與空籃換新 (連動鳥蛋籃庫存) -->
+      <!-- 1. 鳥蛋籃數進度與空籃換新 -->
       <div class="bg-white border border-stone-200 rounded-2xl p-3 shadow-xs flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5">
         <div class="flex-1">
           <div class="flex items-center justify-between mb-1">
@@ -115,7 +114,7 @@
               </span>
               <span class="text-xs font-bold text-stone-600">
                 本籃已賣 <strong id="basketCurrent" class="mono text-sm text-amber-700">0</strong>
-                / 歷史均 <strong id="basketAvgTarget" class="mono text-stone-800">50</strong> 串
+                / 基準 <strong id="basketAvgTarget" class="mono text-stone-800">50</strong> 串
               </span>
               <span id="eggStockBadge" class="text-[11px] bg-emerald-50 text-emerald-800 border border-emerald-200 px-2 py-0.5 rounded-md font-bold mono">
                 庫存剩 3.00 籃
@@ -132,7 +131,7 @@
         <div class="flex items-center gap-2 shrink-0">
           <button onclick="recordEmptyBasket()" class="pos-btn flex-1 sm:flex-initial bg-amber-500 hover:bg-amber-600 text-white font-black text-xs px-3.5 py-2.5 rounded-xl shadow-xs flex items-center justify-center gap-1.5">
             <span>🧺 空籃換新</span>
-            <span class="text-[10px] bg-amber-700/40 px-1.5 py-0.5 rounded font-normal">自動學串數</span>
+            <span id="basketModeTag" class="text-[10px] bg-amber-700/40 px-1.5 py-0.5 rounded font-normal">自動學串數</span>
           </button>
           <button onclick="recordWasteEgg(1)" class="pos-btn bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-bold text-xs px-3 py-2.5 rounded-xl flex items-center gap-1">
             <span>💥 破蛋+1</span>
@@ -150,22 +149,22 @@
           <button onclick="setMultiplier(3)" id="mult-3" class="mult-btn pos-btn flex-1 py-2 rounded-xl font-black text-sm border border-stone-300 bg-white text-stone-700">+3 串</button>
           <button onclick="setMultiplier(5)" id="mult-5" class="mult-btn pos-btn flex-1 py-2 rounded-xl font-black text-sm border border-stone-300 bg-white text-stone-700">+5 串</button>
         </div>
-        <button onclick="undoLastSale()" class="pos-btn bg-stone-200 hover:bg-stone-300 text-stone-800 font-bold text-xs px-3.5 py-2.5 rounded-xl flex items-center gap-1 shrink-0">
+        <button onclick="undoLastSale()" class="pos-btn bg-stone-200 hover:bg-stone-300 text-stone-800 font-bold text-xs px-3.5 py-2 rounded-xl flex items-center gap-1 shrink-0">
           ↩️ 復原上筆
         </button>
       </div>
 
-      <!-- 3. 口味點單主網格 (原味超巨型在上方 + 4種口味 2x2 在下方) -->
-      <div id="flavorGridContainer" class="flex-1 flex flex-col gap-2.5 min-h-[320px]">
+      <!-- 3. 口味點單主網格 -->
+      <div id="flavorGridContainer" class="flex flex-col gap-2.5">
         <!-- 由 JS 動態渲染 -->
       </div>
 
     </section>
 
-    <!-- 【分頁 2：分類庫存、鳥蛋籃換算與收攤盤點】 -->
+    <!-- 【分頁 2：分類庫存、手動設定可做串數 & 校正歸零】 -->
     <section id="tab-inventory" class="hidden max-w-5xl mx-auto p-3 sm:p-5 space-y-4">
       
-      <!-- 1. 店租設定卡片 (日租 / 月租切換) -->
+      <!-- 1. 店租設定卡片 -->
       <div class="bg-white border border-stone-200 rounded-2xl p-4 shadow-xs">
         <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
@@ -202,33 +201,39 @@
         </div>
       </div>
 
-      <!-- 2. 鳥蛋「進貨(籃) ⟷ 銷售(串)」智慧換算看板 -->
-      <div class="bg-gradient-to-r from-amber-50 via-orange-50/60 to-amber-50 border border-amber-300 rounded-2xl p-4 shadow-xs">
+      <!-- 2. 鳥蛋「籃 ⟷ 串」換算與歸零控制台 -->
+      <div class="bg-gradient-to-r from-amber-50 via-orange-50/60 to-amber-50 border border-amber-300 rounded-2xl p-4 shadow-xs space-y-3">
         <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div class="space-y-1">
-            <div class="flex items-center gap-2">
-              <span class="bg-amber-600 text-white text-[11px] font-black px-2 py-0.5 rounded-md">核心連動機制</span>
-              <h3 class="text-sm font-black text-amber-950">🥚 鳥蛋「以籃進貨 ➔ 以串扣庫存」自動換算引擎</h3>
+            <div class="flex items-center gap-2 flex-wrap">
+              <span class="bg-amber-600 text-white text-[11px] font-black px-2 py-0.5 rounded-md">鳥蛋籃數控制</span>
+              <h3 class="text-sm font-black text-amber-950">🥚 1 籃鳥蛋可串幾串？（支援自動平均 or 手動固定 + 換批歸零）</h3>
             </div>
             <p class="text-xs text-amber-900/80 leading-relaxed">
-              進貨鳥蛋時直接輸入<strong>「幾籃」</strong>即可！系統會根據您前台按<strong>「🧺 空籃換新」</strong>累積的實測平均值，自動算出每賣 1 串要扣幾分之幾籃，並動態修正每串的蛋體成本。
+              買到不同大小顆的鳥蛋時，可按<strong>「🔄 籃數校正歸零」</strong>洗掉舊紀錄重新計算，或直接切換成<strong>「🔒 手動固定串數」</strong>！
             </p>
           </div>
-          <div class="bg-white/90 border border-amber-200 rounded-xl p-2.5 shrink-0 flex items-center gap-4">
-            <div class="text-center">
-              <span class="text-[10px] font-bold text-stone-400 block">每籃平均產出</span>
-              <strong id="eggRuleAvgSticks" class="mono text-sm font-black text-amber-700">50.0 串/籃</strong>
-            </div>
-            <div class="h-7 w-px bg-stone-200"></div>
-            <div class="text-center">
-              <span class="text-[10px] font-bold text-stone-400 block">每串扣減籃數</span>
-              <strong id="eggRuleBasketPerStick" class="mono text-sm font-black text-stone-700">0.0200 籃</strong>
-            </div>
-            <div class="h-7 w-px bg-stone-200"></div>
-            <div class="text-center">
-              <span class="text-[10px] font-bold text-stone-400 block">目前每串蛋成本</span>
-              <strong id="eggRuleCostPerStick" class="mono text-sm font-black text-emerald-700">$15.60</strong>
-            </div>
+          <div class="flex items-center gap-2 shrink-0">
+            <button onclick="resetBasketCalibration()" class="pos-btn bg-white hover:bg-rose-50 text-rose-700 border border-rose-300 font-black text-xs px-3 py-2 rounded-xl shadow-2xs">
+              🔄 籃數校正歸零 (換批重算)
+            </button>
+          </div>
+        </div>
+
+        <div class="bg-white/90 border border-amber-200 rounded-xl p-3 grid grid-cols-1 sm:grid-cols-3 gap-3 items-center text-xs">
+          <div class="flex items-center justify-between sm:justify-start gap-2">
+            <span class="font-bold text-stone-600">目前模式：</span>
+            <button id="eggBasketModeBtn" onclick="toggleEggBasketFixedMode()" class="pos-btn px-2.5 py-1 rounded-lg font-black text-xs border"></button>
+          </div>
+          <div class="flex items-center gap-1.5">
+            <label class="font-bold text-stone-600 shrink-0">設定 1 籃可串：</label>
+            <input type="number" step="0.5" id="manualBasketSticksInput" class="mono w-20 bg-stone-50 border border-stone-300 rounded-lg px-2 py-1 font-bold text-stone-800">
+            <span class="text-stone-500 font-bold">串</span>
+            <button onclick="applyManualBasketSticks()" class="pos-btn bg-amber-500 hover:bg-amber-600 text-white font-black px-2.5 py-1 rounded-lg">套用</button>
+          </div>
+          <div class="flex items-center justify-between sm:justify-end gap-3 mono">
+            <span>每串扣 <strong id="eggRuleBasketPerStick" class="text-stone-800">0.0200</strong> 籃</span>
+            <span>每串蛋成本 <strong id="eggRuleCostPerStick" class="text-emerald-700 text-sm">$15.60</strong></span>
           </div>
         </div>
       </div>
@@ -247,7 +252,7 @@
         </div>
       </div>
 
-      <!-- 4. 原料庫存卡片列表 (依分類顯示) -->
+      <!-- 4. 原料庫存卡片列表 (支援手動設定 1單位=幾串 與 校正歸零) -->
       <div id="materialsContainer" class="grid grid-cols-1 md:grid-cols-2 gap-3"></div>
 
     </section>
@@ -297,7 +302,10 @@
           <span class="text-[10px] text-stone-400 block mt-0.5">連續點單 (4~90秒內) 均值</span>
         </div>
         <div class="bg-white border border-stone-200 p-3 rounded-2xl shadow-xs">
-          <span class="text-[11px] font-bold text-stone-400">歷史每籃平均串數</span>
+          <div class="flex items-center justify-between">
+            <span class="text-[11px] font-bold text-stone-400">每籃基準串數</span>
+            <button onclick="resetBasketCalibration()" class="text-[10px] text-rose-600 font-bold underline">歸零重算</button>
+          </div>
           <div class="mt-1 flex items-baseline gap-1">
             <strong id="anaBasketAvg" class="mono text-xl font-black text-stone-800">50.0</strong>
             <span class="text-xs text-stone-500 font-bold">串/籃</span>
@@ -314,11 +322,14 @@
         </div>
         <div class="bg-white border border-stone-200 p-4 rounded-2xl shadow-xs flex flex-col justify-between">
           <div>
-            <h3 class="text-xs font-black text-stone-700 mb-2">🧺 空籃換新實測歷史 (自動算每籃幾串)</h3>
+            <div class="flex items-center justify-between mb-2">
+              <h3 class="text-xs font-black text-stone-700">🧺 空籃換新實測歷史</h3>
+              <button onclick="resetBasketCalibration()" class="text-[11px] bg-rose-50 text-rose-700 border border-rose-200 px-2 py-0.5 rounded-lg font-bold">🔄 清空歷史歸零</button>
+            </div>
             <div id="basketHistoryList" class="space-y-1.5 max-h-48 overflow-y-auto text-xs"></div>
           </div>
           <div class="mt-3 pt-2 border-t border-stone-100 text-[11px] text-stone-500">
-            💡 每次按下前台「空籃換新」，系統自動將該籃串數納入平均，並同步更新鳥蛋「以籃扣串」的換算比例。
+            💡 當換了不同大小顆的鳥蛋進貨時，可點右上角「清空歷史歸零」，從新的一籃重新開始平均。
           </div>
         </div>
       </div>
@@ -336,7 +347,7 @@
       <div class="bg-white border border-stone-200 p-4 rounded-2xl shadow-xs flex flex-wrap items-center justify-between gap-2">
         <div>
           <h2 class="text-sm font-black text-stone-800">🍢 五種口味售價與即時動態成本結構</h2>
-          <p class="text-xs text-stone-500">單串成本 = 鳥蛋(由每籃成本÷每籃平均串數自動算出) + 綁定之醬料/配料/包材物料真實消耗成本。</p>
+          <p class="text-xs text-stone-500">單串成本 = 鳥蛋成本 + 綁定之醬料/配料/包材物料成本（皆會隨手動設定或盤點自動更新）。</p>
         </div>
         <button onclick="openFlavorModal(null)" class="pos-btn bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold px-3 py-2 rounded-xl shadow-xs">
           ➕ 新增測試口味
@@ -349,7 +360,6 @@
     <!-- 【分頁 5：☁️ 雲端正式版同步與上線設定中心】 -->
     <section id="tab-cloud" class="hidden max-w-5xl mx-auto p-3 sm:p-5 space-y-4">
       
-      <!-- 1. Google Sheets 雲端資料庫連線設定 -->
       <div class="bg-white border-2 border-amber-300 rounded-2xl p-4 sm:p-5 shadow-xs space-y-4">
         <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-stone-100 pb-3">
           <div>
@@ -376,15 +386,12 @@
           </div>
         </div>
 
-        <!-- 雲端同步手動按鈕列 -->
         <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-1">
           <button onclick="pushStateToCloud('MANUAL_BACKUP')" class="pos-btn bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs p-3 rounded-xl shadow-xs flex items-center justify-center gap-2">
             <span>⬆️ 立即上傳備份至試算表</span>
-            <span class="text-[10px] bg-emerald-800/40 px-1.5 py-0.5 rounded font-normal">庫存+成本+戰報</span>
           </button>
           <button onclick="pullStateFromCloud()" class="pos-btn bg-sky-600 hover:bg-sky-700 text-white font-black text-xs p-3 rounded-xl shadow-xs flex items-center justify-center gap-2">
             <span>⬇️ 從試算表還原設定與庫存</span>
-            <span class="text-[10px] bg-sky-800/40 px-1.5 py-0.5 rounded font-normal">跨手機同步</span>
           </button>
           <button onclick="exportFullBackupJson()" class="pos-btn bg-stone-100 hover:bg-stone-200 text-stone-700 border border-stone-300 font-bold text-xs p-3 rounded-xl flex items-center justify-center gap-2">
             <span>📦 下載完整系統備份檔 (.json)</span>
@@ -394,35 +401,24 @@
         <div id="cloudSyncLogMsg" class="hidden text-xs font-bold p-3 rounded-xl border"></div>
       </div>
 
-      <!-- 2. 一鍵複製 Google Apps Script 後端程式碼 & 3分鐘綁定教學 -->
       <div class="bg-white border border-stone-200 rounded-2xl p-4 sm:p-5 shadow-xs space-y-3">
         <div class="flex flex-wrap items-center justify-between gap-2">
           <div>
-            <h3 class="text-sm font-black text-stone-800">📋 3 分鐘建立您的專屬 Google 試算表資料庫 (免伺服器費)</h3>
+            <h3 class="text-sm font-black text-stone-800">📋 3 分鐘建立您的專屬 Google 試算表資料庫</h3>
             <p class="text-xs text-stone-500">只需在 Google 試算表貼上下方自動建表程式碼，系統就會自動幫您建立 5 個工作表分頁！</p>
           </div>
           <button onclick="copyGasScript()" class="pos-btn bg-amber-500 hover:bg-amber-600 text-white font-black text-xs px-3.5 py-2 rounded-xl shadow-xs">
             📋 一鍵複製 GAS 後端程式碼
           </button>
         </div>
-
-        <ol class="text-xs text-stone-600 space-y-1.5 list-decimal list-inside bg-stone-50 p-3.5 rounded-xl border border-stone-200 leading-relaxed">
-          <li>打開 Google 雲端硬碟，新增一個空白的 <strong>Google 試算表</strong>（例如命名為「<strong>內灣煎鳥蛋營運資料庫</strong>」）。</li>
-          <li>點選試算表上方選單的 <strong>「擴充功能」 ➔ 「Apps Script」</strong>。</li>
-          <li>把原本裡面的 `myFunction` 刪掉，點擊右上方按鈕 <strong>「📋 一鍵複製 GAS 後端程式碼」</strong> 貼進去並按儲存（💾）。</li>
-          <li>點擊右上角藍色按鈕 <strong>「部署」 ➔ 「新增部署作業」</strong> ➔ 左上齒輪選 <strong>「網頁應用程式 (Web App)」</strong>。</li>
-          <li>「執行身分」選 <strong>「我」</strong>；「誰可以存取」務必選 <strong>「所有人 (Anyone)」</strong> ➔ 按下部署並授權。</li>
-          <li>複製產生的 <strong>網頁應用程式網址 (`https://script.google.com/macros/s/.../exec`)</strong>，貼回上方輸入框即完成！</li>
-        </ol>
       </div>
 
-      <!-- 3. 正式開賣前：清除測試資料與系統初始化區 -->
       <div class="bg-white border border-rose-200 rounded-2xl p-4 sm:p-5 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <span class="bg-rose-100 text-rose-800 text-[10px] font-black px-2 py-0.5 rounded-md">正式擺攤前必備</span>
           <h3 class="text-sm font-black text-stone-800 mt-1">🧹 清除測試點單紀錄（保留口味、店租與目前庫存設定）</h3>
           <p class="text-xs text-stone-500 mt-0.5">
-            在您測試完按鈕手感、準備正式開賣第一天前按一下，系統會把測試按出來的假營收、假戰報清空，但<strong>完整保留您設定好的口味、店租與真實原料庫存</strong>！
+            把測試按出來的假營收、假戰報清空，但<strong>完整保留您設定好的口味、店租與真實原料庫存</strong>！
           </p>
         </div>
         <div class="flex items-center gap-2 shrink-0">
@@ -440,8 +436,8 @@
 
   </main>
 
-  <!-- ================= 底部導覽列 (5 分頁) ================= -->
-  <nav class="fixed bottom-0 left-0 right-0 bg-white border-t border-stone-200 px-1.5 py-2 shadow-lg z-40">
+  <!-- ================= 底部導覽列 (永遠固定在手機畫面最下方) ================= -->
+  <nav class="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-xs border-t border-stone-200 px-1.5 py-2 shadow-lg z-40">
     <div class="max-w-5xl mx-auto grid grid-cols-5 gap-1">
       <button onclick="switchTab('pos')" id="nav-pos" class="nav-btn py-2 rounded-xl font-black text-[11px] sm:text-xs flex flex-col items-center gap-0.5 bg-amber-500 text-white shadow-xs">
         <span>🍳 前台收銀</span>
@@ -463,7 +459,7 @@
 
   <!-- ================= 彈窗 1：🏁 下班結算戰報 Modal ================= -->
   <div id="closeOutModal" class="fixed inset-0 bg-stone-900/60 backdrop-blur-xs hidden items-center justify-center p-3 z-50">
-    <div class="bg-white border border-stone-200 rounded-3xl max-w-lg w-full p-5 shadow-xl space-y-4 max-h-[92vh] overflow-y-auto">
+    <div class="bg-white border border-stone-200 rounded-3xl max-w-lg w-full p-5 shadow-xl space-y-4 max-h-[90vh] overflow-y-auto">
       <div class="flex items-center justify-between border-b border-stone-200 pb-3">
         <div>
           <span class="text-[11px] font-bold text-rose-600 bg-rose-50 px-2 py-0.5 rounded-full border border-rose-200">END OF SHIFT</span>
@@ -493,7 +489,7 @@
       <div class="bg-stone-50 border border-stone-200 rounded-2xl p-3.5 space-y-2 text-xs">
         <div class="font-black text-stone-700 border-b border-stone-200 pb-1.5 flex justify-between">
           <span>💰 成本與利潤精算明細</span>
-          <span class="text-stone-400 font-normal">依最新盤點消耗率計算</span>
+          <span class="text-stone-400 font-normal">依最新設定/盤點計算</span>
         </div>
         <div class="flex justify-between text-stone-600">
           <span>➕ 今日營業總收入</span>
@@ -558,7 +554,7 @@
           <select id="purMatId" onchange="onPurchaseMaterialChange()" class="w-full bg-stone-50 border border-stone-300 rounded-xl px-3 py-2 font-bold text-stone-800"></select>
         </div>
         <div id="purEggHint" class="hidden bg-amber-50 border border-amber-200 p-2.5 rounded-xl text-[11px] text-amber-900 leading-relaxed">
-          🥚 <strong>鳥蛋以「籃」進貨：</strong>直接輸入這次進了幾籃（例如 `2` 籃）與總金額（例如 `$1560`）。系統會自動除以歷史每籃平均串數，算出每賣 1 串的蛋成本！
+          🥚 <strong>鳥蛋以「籃」進貨：</strong>直接輸入這次進了幾籃与總金額。若這批蛋的大小顆跟以前明顯不同，進貨後可按「🔄 籃數校正歸零」重新計算每籃串數！
         </div>
         <div class="grid grid-cols-2 gap-2.5">
           <div>
@@ -606,7 +602,7 @@
         <div class="grid grid-cols-3 gap-2">
           <div>
             <label class="font-bold text-stone-600 block mb-1">庫存單位</label>
-            <input type="text" id="editMatUnit" placeholder="籃 / g / 個" class="w-full bg-stone-50 border border-stone-300 rounded-xl px-3 py-2 font-bold">
+            <input type="text" id="editMatUnit" placeholder="籃 / 包 / g / 組" class="w-full bg-stone-50 border border-stone-300 rounded-xl px-3 py-2 font-bold">
           </div>
           <div>
             <label class="font-bold text-stone-600 block mb-1">目前庫存量</label>
@@ -618,12 +614,28 @@
           </div>
         </div>
 
-        <div id="editMatUsageBox">
-          <label class="font-bold text-stone-600 block mb-1">目前平均每串消耗量 (收攤盤點後會自動學習修正)</label>
-          <input type="number" step="any" id="editMatUsage" class="mono w-full bg-stone-50 border border-stone-300 rounded-xl px-3 py-2 font-bold">
-        </div>
-        <div id="editMatEggNotice" class="hidden bg-amber-50 border border-amber-200 p-2.5 rounded-xl text-[11px] text-amber-900">
-          🥚 此品項為<strong>「鳥蛋（以籃計價）」</strong>，每串消耗的籃數由前台按下「🧺 空籃換新」的歷史每籃平均串數自動決定，無需手動填寫！
+        <!-- 雙向連動設定：1單位可做幾串 <---> 每串消耗多少單位 -->
+        <div class="bg-amber-50/70 border border-amber-200 p-3 rounded-2xl space-y-2.5">
+          <div class="flex items-center justify-between">
+            <label class="font-black text-amber-950">🎯 消耗設定（兩欄自動互相換算）</label>
+            <label class="flex items-center gap-1.5 cursor-pointer bg-white px-2.5 py-1 rounded-lg border border-amber-300">
+              <input type="checkbox" id="editMatFixedCheck" class="accent-amber-600 w-3.5 h-3.5">
+              <span class="text-[11px] font-black text-amber-900">🔒 手動固定 (不受盤點影響)</span>
+            </label>
+          </div>
+          <div class="grid grid-cols-2 gap-2.5">
+            <div>
+              <label class="font-bold text-stone-600 block mb-1">1 單位可做幾串？</label>
+              <input type="number" step="any" id="editMatSticksPerUnit" oninput="syncModalUsageFromSticks()" placeholder="如: 1籃做50串" class="mono w-full bg-white border border-stone-300 rounded-xl px-3 py-2 font-bold text-amber-800">
+            </div>
+            <div>
+              <label class="font-bold text-stone-600 block mb-1">平均每串消耗量</label>
+              <input type="number" step="any" id="editMatUsage" oninput="syncModalSticksFromUsage()" class="mono w-full bg-white border border-stone-300 rounded-xl px-3 py-2 font-bold text-stone-800">
+            </div>
+          </div>
+          <p class="text-[11px] text-stone-500">
+            💡 例如：若單位是「包」，1包肉鬆可做 80 串，左邊填 `80`，右邊就會自動算出每串消耗 `0.0125` 包！若勾選「🔒手動固定」，下班盤點時就只會扣庫存、不會去改動這個比例。
+          </p>
         </div>
 
         <div>
@@ -674,7 +686,7 @@
   </div>
 
   <script>
-    // ================= 0. 動態注入 PWA Manifest (支援手機「加入主畫面」全螢幕 App) =================
+    // ================= 0. 動態注入 PWA Manifest =================
     (function injectPwaManifest() {
       const manifest = {
         name: "煎鳥蛋 POS 與智慧庫存系統",
@@ -717,11 +729,8 @@
       updateWakeLockUI(false);
     }
     async function toggleWakeLockManual() {
-      if (wakeLockSentinel) {
-        await releaseScreenWakeLock();
-      } else {
-        await requestScreenWakeLock();
-      }
+      if (wakeLockSentinel) await releaseScreenWakeLock();
+      else await requestScreenWakeLock();
     }
     function updateWakeLockUI(isLocked) {
       const el = document.getElementById('wakeLockBadge');
@@ -750,8 +759,8 @@
     };
     let currentCategoryFilter = 'all';
 
-    // ================= 3. 系統預設資料與狀態 (LocalStorage v7 Production) =================
-    const STORAGE_KEY = 'quail_egg_pos_prod_v7';
+    // ================= 3. 系統預設資料與狀態 (LocalStorage v8) =================
+    const STORAGE_KEY = 'quail_egg_pos_prod_v8';
 
     const DEFAULT_STATE = {
       cloud: {
@@ -775,7 +784,9 @@
         currentIndex: 1,
         currentSticks: 0,
         currentWasteEggs: 0,
-        historySticks: [50]
+        historySticks: [50],
+        useFixedYield: false, // 若為 true，代表手動鎖定每籃串數，不隨空籃換新自動改變
+        fixedSticks: 50
       },
       multiplier: 1,
       flavors: [
@@ -786,31 +797,31 @@
         { id: 'f_hakka',  name: '客家蒜香油蔥酥', sub: '內灣特色古早味油蔥',     price: 45, isPrimary: false }
       ],
       materials: [
-        { id: 'm_egg', name: '生鳥蛋 (整籃進貨)', category: 'ingredient', unit: '籃', stock: 3.00, unitCost: 780, usagePerStick: 0.02, isEggBasket: true,
+        { id: 'm_egg', name: '生鳥蛋 (整籃進貨)', category: 'ingredient', unit: '籃', stock: 3.00, unitCost: 780, usagePerStick: 0.02, isEggBasket: true, isFixedRate: false,
           boundFlavors: ['f_orig','f_tako','f_cheese','f_floss','f_hakka'],
           expectedSinceAudit: 0, histConsumed: 1.00, histSticks: 50, auditCount: 1 },
-        { id: 'm_oil', name: '耐炸食用油', category: 'ingredient', unit: 'ml', stock: 3000, unitCost: 0.08, usagePerStick: 2.5, isEggBasket: false,
+        { id: 'm_oil', name: '耐炸食用油', category: 'ingredient', unit: 'ml', stock: 3000, unitCost: 0.08, usagePerStick: 2.5, isEggBasket: false, isFixedRate: false,
           boundFlavors: ['f_orig','f_tako','f_cheese','f_floss','f_hakka'],
           expectedSinceAudit: 0, histConsumed: 250, histSticks: 100, auditCount: 1 },
-        { id: 'm_diy_sauce', name: 'DIY 醬料組 (醬油膏/甜辣/胡椒)', category: 'sauce', unit: 'g', stock: 2500, unitCost: 0.18, usagePerStick: 10, isEggBasket: false,
+        { id: 'm_diy_sauce', name: 'DIY 醬料組 (醬油膏/甜辣/胡椒)', category: 'sauce', unit: 'g', stock: 2500, unitCost: 0.18, usagePerStick: 10, isEggBasket: false, isFixedRate: false,
           boundFlavors: ['f_orig','f_floss','f_hakka'],
           expectedSinceAudit: 0, histConsumed: 600, histSticks: 60, auditCount: 1 },
-        { id: 'm_mayo', name: '日式美乃滋 / 章魚燒醬', category: 'sauce', unit: 'g', stock: 1800, unitCost: 0.25, usagePerStick: 14, isEggBasket: false,
+        { id: 'm_mayo', name: '日式美乃滋 / 章魚燒醬', category: 'sauce', unit: 'g', stock: 1800, unitCost: 0.25, usagePerStick: 14, isEggBasket: false, isFixedRate: false,
           boundFlavors: ['f_tako','f_floss'],
           expectedSinceAudit: 0, histConsumed: 280, histSticks: 20, auditCount: 1 },
-        { id: 'm_cheese', name: '香濃起司醬', category: 'sauce', unit: 'g', stock: 1200, unitCost: 0.42, usagePerStick: 15, isEggBasket: false,
+        { id: 'm_cheese', name: '香濃起司醬', category: 'sauce', unit: 'g', stock: 1200, unitCost: 0.42, usagePerStick: 15, isEggBasket: false, isFixedRate: false,
           boundFlavors: ['f_cheese'],
           expectedSinceAudit: 0, histConsumed: 300, histSticks: 20, auditCount: 1 },
-        { id: 'm_bonito', name: '柴魚片 & 海苔粉', category: 'topping', unit: 'g', stock: 600, unitCost: 0.85, usagePerStick: 4, isEggBasket: false,
+        { id: 'm_bonito', name: '柴魚片 & 海苔粉', category: 'topping', unit: 'g', stock: 600, unitCost: 0.85, usagePerStick: 4, isEggBasket: false, isFixedRate: false,
           boundFlavors: ['f_tako','f_floss'],
           expectedSinceAudit: 0, histConsumed: 80, histSticks: 20, auditCount: 1 },
-        { id: 'm_floss', name: '香酥芝麻肉鬆', category: 'topping', unit: 'g', stock: 800, unitCost: 0.55, usagePerStick: 8, isEggBasket: false,
+        { id: 'm_floss', name: '香酥芝麻肉鬆', category: 'topping', unit: 'g', stock: 800, unitCost: 0.55, usagePerStick: 8, isEggBasket: false, isFixedRate: false,
           boundFlavors: ['f_floss'],
           expectedSinceAudit: 0, histConsumed: 160, histSticks: 20, auditCount: 1 },
-        { id: 'm_hakka', name: '客家蒜香油蔥酥', category: 'topping', unit: 'g', stock: 750, unitCost: 0.65, usagePerStick: 7, isEggBasket: false,
+        { id: 'm_hakka', name: '客家蒜香油蔥酥', category: 'topping', unit: 'g', stock: 750, unitCost: 0.65, usagePerStick: 7, isEggBasket: false, isFixedRate: false,
           boundFlavors: ['f_hakka'],
           expectedSinceAudit: 0, histConsumed: 140, histSticks: 20, auditCount: 1 },
-        { id: 'm_box', name: '防油紙船盒 & 竹籤組', category: 'supply', unit: '組', stock: 500, unitCost: 1.6, usagePerStick: 1, isEggBasket: false,
+        { id: 'm_box', name: '防油紙船盒 & 竹籤組', category: 'supply', unit: '組', stock: 500, unitCost: 1.6, usagePerStick: 1, isEggBasket: false, isFixedRate: true,
           boundFlavors: ['f_orig','f_tako','f_cheese','f_floss','f_hakka'],
           expectedSinceAudit: 0, histConsumed: 100, histSticks: 100, auditCount: 1 }
       ],
@@ -825,13 +836,20 @@
 
     function loadState() {
       try {
-        // 若 v7 尚無資料，嘗試承接 v6 資料
-        const raw = localStorage.getItem(STORAGE_KEY) || localStorage.getItem('quail_egg_pos_light_v6');
+        const raw = localStorage.getItem(STORAGE_KEY) || localStorage.getItem('quail_egg_pos_prod_v7') || localStorage.getItem('quail_egg_pos_light_v6');
         if (!raw) return JSON.parse(JSON.stringify(DEFAULT_STATE));
         const parsed = JSON.parse(raw);
         const merged = { ...JSON.parse(JSON.stringify(DEFAULT_STATE)), ...parsed };
         if (!merged.cloud) merged.cloud = { gasUrl: '', lastSyncTime: null, lastSyncStatus: '尚未設定' };
         if (!merged.purchaseLogs) merged.purchaseLogs = [];
+        if (merged.basket.useFixedYield === undefined) merged.basket.useFixedYield = false;
+        if (!merged.basket.fixedSticks) merged.basket.fixedSticks = 50;
+        merged.materials = merged.materials.map(m => ({
+          category: 'ingredient',
+          isEggBasket: false,
+          isFixedRate: m.id === 'm_box',
+          ...m
+        }));
         return merged;
       } catch (e) {
         return JSON.parse(JSON.stringify(DEFAULT_STATE));
@@ -843,10 +861,13 @@
       localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
     }
 
-    // ================= 4. 鳥蛋「籃 ⟷ 串」自動同步引擎 =================
+    // ================= 4. 鳥蛋「籃 ⟷ 串」自動/手動同步引擎 & 歸零功能 =================
     function getAvgSticksPerBasket() {
+      if (state.basket.useFixedYield) {
+        return Math.max(1, Number(state.basket.fixedSticks) || 50);
+      }
       const arr = state.basket.historySticks;
-      if (!arr || arr.length === 0) return 50;
+      if (!arr || arr.length === 0) return Math.max(1, Number(state.basket.fixedSticks) || 50);
       const sum = arr.reduce((a, b) => a + b, 0);
       return Math.max(1, sum / arr.length);
     }
@@ -857,8 +878,57 @@
       state.materials.forEach(m => {
         if (m.isEggBasket) {
           m.usagePerStick = basketPerStick;
+          m.isFixedRate = state.basket.useFixedYield;
         }
       });
+    }
+
+    // 切換鳥蛋籃「自動學習」或「手動固定」
+    function toggleEggBasketFixedMode() {
+      playClickTone(620, 0.05);
+      state.basket.useFixedYield = !state.basket.useFixedYield;
+      if (state.basket.useFixedYield) {
+        state.basket.fixedSticks = Number(getAvgSticksPerBasket().toFixed(1));
+      }
+      saveState();
+      renderAll();
+    }
+
+    // 手動輸入 1 籃可做幾串
+    function applyManualBasketSticks() {
+      const val = Number(document.getElementById('manualBasketSticksInput').value);
+      if (!val || val <= 0) return;
+      playClickTone(750, 0.06);
+      state.basket.fixedSticks = val;
+      // 若處於自動模式，也把歷史陣列重設為此基準值
+      state.basket.historySticks = [val];
+      saveState();
+      renderAll();
+    }
+
+    // 🔄 鳥蛋籃數校正歸零 (換新蛋商或不同大小顆時使用)
+    function resetBasketCalibration() {
+      const currentBase = Number(document.getElementById('manualBasketSticksInput')?.value) || Math.round(getAvgSticksPerBasket()) || 50;
+      const newDefault = prompt('🔄 【鳥蛋每籃串數 · 校正歸零】\n\n當您買了不同大小顆的鳥蛋時，可清空過去的歷史平均值重新累積。\n請輸入新一批鳥蛋的「初始預估每籃串數」：', currentBase);
+      if (newDefault === null) return;
+      const num = Number(newDefault);
+      if (isNaN(num) || num <= 0) {
+        alert('請輸入大於 0 的有效串數！');
+        return;
+      }
+      playClickTone(820, 0.08);
+      state.basket.historySticks = [num];
+      state.basket.fixedSticks = num;
+      state.basketLogs = [];
+      const eggMat = state.materials.find(m => m.isEggBasket);
+      if (eggMat) {
+        eggMat.auditCount = 1;
+        eggMat.expectedSinceAudit = 0;
+        eggMat.histConsumed = 1;
+        eggMat.histSticks = num;
+      }
+      saveState();
+      renderAll();
     }
 
     // ================= 5. 音效回饋 =================
@@ -949,7 +1019,7 @@
         state.shift.active = true;
         if (!state.shift.startTime) state.shift.startTime = Date.now();
         state.shift.lastResumeTime = Date.now();
-        requestScreenWakeLock(); // 開始營業自動開啟螢幕防休眠常亮
+        requestScreenWakeLock();
       } else {
         state.shift.active = false;
         if (state.shift.lastResumeTime) {
@@ -1063,7 +1133,10 @@
       }
       playClickTone(880, 0.09);
 
-      state.basket.historySticks.push(sticks);
+      // 若未鎖定手動固定，才將此籃串數推入歷史學習陣列
+      if (!state.basket.useFixedYield) {
+        state.basket.historySticks.push(sticks);
+      }
       const newAvg = getAvgSticksPerBasket();
 
       state.basketLogs.unshift({
@@ -1079,7 +1152,9 @@
       state.basket.currentWasteEggs = 0;
 
       syncEggBasketUsageRate();
-      document.getElementById('lastActionText').textContent = `🧺 空籃換新！本籃 ${sticks} 串，歷史均更新為 ${newAvg.toFixed(1)} 串/籃`;
+      document.getElementById('lastActionText').textContent = state.basket.useFixedYield
+        ? `🧺 空籃換新！本籃 ${sticks} 串 (目前鎖定每籃 ${newAvg.toFixed(1)} 串)`
+        : `🧺 空籃換新！本籃 ${sticks} 串，歷史均更新為 ${newAvg.toFixed(1)} 串/籃`;
 
       saveState();
       renderAll();
@@ -1197,7 +1272,6 @@
       const logsSnapshot = [...state.salesLogs];
       state.shiftArchives.unshift(archiveRecord);
 
-      // 若有綁定 Google Sheets 雲端網址，自動上傳今日戰報、毫秒紀錄與最新庫存
       if (state.cloud && state.cloud.gasUrl) {
         await pushStateToCloud('CLOSE_SHIFT', {
           archiveRecord,
@@ -1205,7 +1279,6 @@
         });
       }
 
-      // 重置當日櫃檯
       state.salesLogs = [];
       state.wasteLogs = [];
       state.shift = { active: false, startTime: null, accumulatedMs: 0, lastResumeTime: null };
@@ -1220,7 +1293,7 @@
       renderAll();
     }
 
-    // ================= 10. 分類庫存、進貨與下班盤點學習 =================
+    // ================= 10. 分類庫存、手動設定「1單位=幾串」與「校正歸零」 =================
     function setCategoryFilter(catKey) {
       currentCategoryFilter = catKey;
       renderInventoryTab();
@@ -1242,6 +1315,70 @@
       renderHeader();
     }
 
+    // 切換單一品項「🔄 自動學習」或「🔒 手動固定」
+    function toggleMaterialFixedRate(matId) {
+      const m = state.materials.find(x => x.id === matId);
+      if (!m) return;
+      if (m.isEggBasket) {
+        toggleEggBasketFixedMode();
+        return;
+      }
+      playClickTone(620, 0.05);
+      m.isFixedRate = !m.isFixedRate;
+      saveState();
+      renderAll();
+    }
+
+    // 在庫存卡片上直接手動設定「1 單位可以用幾串」
+    function applyManualSticksPerUnit(matId) {
+      const m = state.materials.find(x => x.id === matId);
+      const inp = document.getElementById(`spuInput_${matId}`);
+      if (!m || !inp) return;
+
+      const sticksPerUnit = Number(inp.value);
+      if (isNaN(sticksPerUnit) || sticksPerUnit <= 0) {
+        alert('請輸入大於 0 的串數！');
+        return;
+      }
+
+      playClickTone(760, 0.06);
+
+      if (m.isEggBasket) {
+        state.basket.fixedSticks = sticksPerUnit;
+        state.basket.historySticks = [sticksPerUnit];
+        syncEggBasketUsageRate();
+      } else {
+        const newUsage = Number((1 / sticksPerUnit).toFixed(6));
+        m.usagePerStick = newUsage;
+        // 同步重設歷史基準池為目前新比例
+        m.histSticks = 50;
+        m.histConsumed = newUsage * 50;
+      }
+
+      saveState();
+      renderAll();
+    }
+
+    // 🔄 單一原料「校正歸零」按鈕 (換新規格、新包裝大小時重置歷史數據)
+    function resetMaterialCalibration(matId) {
+      const m = state.materials.find(x => x.id === matId);
+      if (!m) return;
+      if (m.isEggBasket) {
+        resetBasketCalibration();
+        return;
+      }
+      if (!confirm(`🔄 確定要將「${m.name}」的歷史學習數據歸零嗎？\n\n歸零後，舊批次的消耗紀錄會清空，並以目前的設定值（每串消耗 ${Number(m.usagePerStick).toFixed(4)} ${m.unit}）作為全新起點！`)) return;
+
+      playClickTone(820, 0.08);
+      m.expectedSinceAudit = 0;
+      m.histSticks = 20;
+      m.histConsumed = (Number(m.usagePerStick) || 0) * 20;
+      m.auditCount = 1;
+      saveState();
+      renderAll();
+    }
+
+    // 下班輸入實際剩餘庫存 -> 若為「🔒手動固定」則只更新庫存；若為「🔄學習中」則自動修正消耗率
     function applyMaterialAudit(matId) {
       const m = state.materials.find(x => x.id === matId);
       const inputEl = document.getElementById(`auditInput_${matId}`);
@@ -1255,11 +1392,13 @@
       const actualUsedSinceLastAudit = Math.max(0, expectedUsed + (bookRemain - actualRemain));
 
       if (m.isEggBasket) {
-        const totalSticksSold = state.salesLogs.reduce((s, l) => s + l.qty, 0);
-        if (actualUsedSinceLastAudit > 0.05 && totalSticksSold >= 10) {
-          const impliedSticksPerBasket = Math.round(totalSticksSold / actualUsedSinceLastAudit);
-          if (impliedSticksPerBasket >= 15 && impliedSticksPerBasket <= 120) {
-            state.basket.historySticks.push(impliedSticksPerBasket);
+        if (!state.basket.useFixedYield) {
+          const totalSticksSold = state.salesLogs.reduce((s, l) => s + l.qty, 0);
+          if (actualUsedSinceLastAudit > 0.05 && totalSticksSold >= 10) {
+            const impliedSticksPerBasket = Math.round(totalSticksSold / actualUsedSinceLastAudit);
+            if (impliedSticksPerBasket >= 15 && impliedSticksPerBasket <= 120) {
+              state.basket.historySticks.push(impliedSticksPerBasket);
+            }
           }
         }
         m.stock = actualRemain;
@@ -1271,15 +1410,18 @@
         return;
       }
 
-      const relevantSticks = state.salesLogs
-        .filter(log => m.boundFlavors && m.boundFlavors.includes(log.flavorId))
-        .reduce((s, log) => s + log.qty, 0);
+      // 只有未鎖定手動固定時，才根據盤點差額更新每串消耗量
+      if (!m.isFixedRate) {
+        const relevantSticks = state.salesLogs
+          .filter(log => m.boundFlavors && m.boundFlavors.includes(log.flavorId))
+          .reduce((s, log) => s + log.qty, 0);
 
-      if (relevantSticks > 0 && actualUsedSinceLastAudit > 0) {
-        m.histConsumed = (Number(m.histConsumed) || 0) + actualUsedSinceLastAudit;
-        m.histSticks = (Number(m.histSticks) || 0) + relevantSticks;
-        m.usagePerStick = Number((m.histConsumed / m.histSticks).toFixed(4));
-        m.auditCount = (m.auditCount || 1) + 1;
+        if (relevantSticks > 0 && actualUsedSinceLastAudit > 0) {
+          m.histConsumed = (Number(m.histConsumed) || 0) + actualUsedSinceLastAudit;
+          m.histSticks = (Number(m.histSticks) || 0) + relevantSticks;
+          m.usagePerStick = Number((m.histConsumed / m.histSticks).toFixed(5));
+          m.auditCount = (m.auditCount || 1) + 1;
+        }
       }
 
       m.stock = actualRemain;
@@ -1362,24 +1504,34 @@
       }
     }
 
+    // 彈窗內雙向換算：1單位可做幾串 <---> 每串消耗量
+    function syncModalUsageFromSticks() {
+      const spu = Number(document.getElementById('editMatSticksPerUnit').value);
+      if (spu > 0) {
+        document.getElementById('editMatUsage').value = Number((1 / spu).toFixed(5));
+      }
+    }
+    function syncModalSticksFromUsage() {
+      const usage = Number(document.getElementById('editMatUsage').value);
+      if (usage > 0) {
+        document.getElementById('editMatSticksPerUnit').value = Number((1 / usage).toFixed(2));
+      }
+    }
+
     function openEditMaterialModal(matId = null) {
       const m = matId ? state.materials.find(x => x.id === matId) : null;
       document.getElementById('matModalTitle').textContent = m ? `⚙️ 編輯品項：${m.name}` : '🛠️ 新增庫存品項';
       document.getElementById('editMatId').value = m ? m.id : '';
       document.getElementById('editMatName').value = m ? m.name : '';
       document.getElementById('editMatCategory').value = m ? (m.category || 'ingredient') : (currentCategoryFilter === 'all' ? 'sauce' : currentCategoryFilter);
-      document.getElementById('editMatUnit').value = m ? m.unit : 'g';
-      document.getElementById('editMatStock').value = m ? Number(m.stock).toFixed(m.isEggBasket ? 2 : 1) : 1000;
-      document.getElementById('editMatUnitCost').value = m ? m.unitCost : 0.2;
-      document.getElementById('editMatUsage').value = m ? m.usagePerStick : 10;
+      document.getElementById('editMatUnit').value = m ? m.unit : '包';
+      document.getElementById('editMatStock').value = m ? Number(m.stock).toFixed(m.isEggBasket ? 2 : 1) : 10;
+      document.getElementById('editMatUnitCost').value = m ? m.unitCost : 100;
 
-      if (m && m.isEggBasket) {
-        document.getElementById('editMatUsageBox').classList.add('hidden');
-        document.getElementById('editMatEggNotice').classList.remove('hidden');
-      } else {
-        document.getElementById('editMatUsageBox').classList.remove('hidden');
-        document.getElementById('editMatEggNotice').classList.add('hidden');
-      }
+      const usageVal = m ? (Number(m.usagePerStick) || 0.02) : 0.02;
+      document.getElementById('editMatUsage').value = usageVal;
+      document.getElementById('editMatSticksPerUnit').value = usageVal > 0 ? Number((1 / usageVal).toFixed(2)) : 50;
+      document.getElementById('editMatFixedCheck').checked = m ? Boolean(m.isFixedRate) : true;
 
       const boxContainer = document.getElementById('flavorCheckboxes');
       boxContainer.innerHTML = '';
@@ -1411,6 +1563,7 @@
       const stock = Number(document.getElementById('editMatStock').value) || 0;
       const unitCost = Number(document.getElementById('editMatUnitCost').value) || 0;
       const usagePerStick = Number(document.getElementById('editMatUsage').value) || 0;
+      const isFixedRate = document.getElementById('editMatFixedCheck').checked;
 
       if (!name) return;
 
@@ -1424,8 +1577,14 @@
           m.unit = unit;
           m.stock = stock;
           m.unitCost = unitCost;
-          if (!m.isEggBasket) m.usagePerStick = usagePerStick;
+          m.usagePerStick = usagePerStick;
+          m.isFixedRate = isFixedRate;
           m.boundFlavors = boundFlavors;
+          if (m.isEggBasket && usagePerStick > 0) {
+            state.basket.useFixedYield = isFixedRate;
+            state.basket.fixedSticks = Number((1 / usagePerStick).toFixed(1));
+            state.basket.historySticks = [state.basket.fixedSticks];
+          }
         }
       } else {
         state.materials.push({
@@ -1437,6 +1596,7 @@
           unitCost,
           usagePerStick,
           isEggBasket: false,
+          isFixedRate,
           boundFlavors,
           expectedSinceAudit: 0,
           histConsumed: usagePerStick * 20,
@@ -1622,7 +1782,7 @@
         state.cloud.lastSyncStatus = '連線異常';
         saveState();
         renderHeader();
-        showCloudMessage(`❌ 雲端同步失敗：${err.message}（若現場沒網路，資料已安全保存在手機本地）`, false);
+        showCloudMessage(`❌ 雲端同步失敗：${err.message}`, false);
         return false;
       }
     }
@@ -1642,7 +1802,7 @@
           if (snap.materials) state.materials = snap.materials;
           if (snap.flavors) state.flavors = snap.flavors;
           if (snap.rent) state.rent = snap.rent;
-          if (snap.basket && snap.basket.historySticks) state.basket.historySticks = snap.basket.historySticks;
+          if (snap.basket) state.basket = { ...state.basket, ...snap.basket };
           if (snap.shiftArchives) state.shiftArchives = snap.shiftArchives;
 
           state.cloud.lastSyncTime = new Date().toLocaleTimeString('zh-TW', { hour12: false });
@@ -1703,11 +1863,9 @@
       showCloudMessage('🧹 已清空所有測試銷售數據！系統已準備好正式開賣！', true);
     }
 
-    // 一鍵複製 Google Apps Script 後端程式碼
     function copyGasScript() {
       const gasCode = `// =========================================================
 // 煎鳥蛋 POS 系統 - Google Sheets 雲端自動化後端 (GAS)
-// 貼上後請點選「部署」->「新增部署作業」->「網頁應用程式」-> 誰可以存取選「所有人」
 // =========================================================
 
 function doPost(e) {
@@ -1717,7 +1875,6 @@ function doPost(e) {
     var data = JSON.parse(e.postData.contents);
     var ss = SpreadsheetApp.getActiveSpreadsheet();
 
-    // 1. 永遠保存最新系統狀態快照 (供跨手機還原使用)
     var metaSheet = getOrCreateSheet(ss, 'System_State', ['更新時間', 'JSON狀態快照']);
     var snapshot = {
       materials: data.materials,
@@ -1728,22 +1885,20 @@ function doPost(e) {
     };
     metaSheet.getRange(2, 1, 1, 2).setValues([[new Date(), JSON.stringify(snapshot)]]);
 
-    // 2. 更新「目前庫存與動態成本表」
     if (data.materials && data.materials.length > 0) {
-      var invSheet = getOrCreateSheet(ss, 'Inventory_State', ['品項ID', '分類', '品項名稱', '目前剩餘庫存', '單位', '單位加權成本($)', '每串平均消耗量', '每串分攤成本($)', '累計盤點學習次數', '最後更新時間']);
+      var invSheet = getOrCreateSheet(ss, 'Inventory_State', ['品項ID', '分類', '品項名稱', '目前剩餘庫存', '單位', '單位加權成本($)', '每串平均消耗量', '每串分攤成本($)', '模式', '最後更新時間']);
       if (invSheet.getLastRow() > 1) {
         invSheet.getRange(2, 1, invSheet.getLastRow() - 1, 10).clearContent();
       }
       var invRows = data.materials.map(function(m) {
         var costPerStick = (Number(m.unitCost) || 0) * (Number(m.usagePerStick) || 0);
-        return [m.id, m.category, m.name, m.stock, m.unit, m.unitCost, m.usagePerStick, Number(costPerStick.toFixed(2)), m.auditCount || 1, new Date()];
+        return [m.id, m.category, m.name, m.stock, m.unit, m.unitCost, m.usagePerStick, Number(costPerStick.toFixed(2)), m.isFixedRate ? '手動固定' : '自動學習', new Date()];
       });
       invSheet.getRange(2, 1, invRows.length, 10).setValues(invRows);
     }
 
-    // 3. 若是「下班結算 (CLOSE_SHIFT)」，寫入每日總戰報與毫秒級點單明細
     if (data.action === 'CLOSE_SHIFT' && data.archiveRecord) {
-      var sumSheet = getOrCreateSheet(ss, 'Daily_Summary', ['結算日期時間', '營業工時', '總銷售串數', '總營業額($)', '食材醬料包材成本($)', '破蛋報廢成本($)', '店租攤提($)', '今日真實淨利($)', '平均時薪($/h)', '客組數', '排隊平均停留秒數', '每籃平均串數']);
+      var sumSheet = getOrCreateSheet(ss, 'Daily_Summary', ['結算日期時間', '營業工時', '總銷售串數', '總營業額($)', '食材醬料包材成本($)', '破蛋報廢成本($)', '店租攤提($)', '今日真實淨利($)', '平均時薪($/h)', '客組數', '排隊平均停留秒數', '每籃基準串數']);
       var r = data.archiveRecord;
       sumSheet.appendRow([r.dateStr, r.durationStr, r.totalSticks, r.totalRev, r.totalCogs, r.wasteCost, r.rentCost, r.netProfit, r.hourlyWage, r.groupCount, r.avgDwellSec, r.avgBasketSticks]);
 
@@ -1758,7 +1913,6 @@ function doPost(e) {
       }
     }
 
-    // 4. 若是「進貨補貨 (LOG_PURCHASE)」，寫入進貨流水帳
     if (data.action === 'LOG_PURCHASE' && data.purchase) {
       var purSheet = getOrCreateSheet(ss, 'Purchase_Logs', ['進貨時間', '分類', '品項名稱', '進貨數量', '單位', '進貨總額($)', '更新後加權單價($)']);
       var p = data.purchase;
@@ -1795,7 +1949,7 @@ function getOrCreateSheet(ss, name, headers) {
   return sheet;
 }`;
       navigator.clipboard.writeText(gasCode).then(() => {
-        showCloudMessage('📋 已成功複製 Google Apps Script 後端程式碼！請前往 Google 試算表 -> 擴充功能 -> Apps Script 貼上並部署。', true);
+        showCloudMessage('📋 已成功複製 Google Apps Script 後端程式碼！', true);
       });
     }
 
@@ -1887,6 +2041,7 @@ function getOrCreateSheet(ss, name, headers) {
           nav.className = 'nav-btn py-2 rounded-xl font-bold text-[11px] sm:text-xs flex flex-col items-center gap-0.5 text-stone-600 hover:bg-stone-100';
         }
       });
+      window.scrollTo({ top: 0, behavior: 'smooth' });
       renderAll();
     }
 
@@ -1912,7 +2067,6 @@ function getOrCreateSheet(ss, name, headers) {
         shiftDot.className = 'w-2 h-2 rounded-full bg-white';
       }
 
-      // 雲端狀態燈
       const hasUrl = state.cloud && state.cloud.gasUrl && state.cloud.gasUrl.startsWith('http');
       const cDot = document.getElementById('cloudStatusDot');
       const cText = document.getElementById('cloudStatusText');
@@ -1937,8 +2091,9 @@ function getOrCreateSheet(ss, name, headers) {
       document.getElementById('basketIdx').textContent = state.basket.currentIndex;
       document.getElementById('basketCurrent').textContent = curr;
       document.getElementById('basketAvgTarget').textContent = avgTarget;
-      document.getElementById('basketRemainText').textContent = remain > 0 ? `預估還可串 ${remain} 串` : `已達歷史均值，見底請按空籃換新`;
+      document.getElementById('basketRemainText').textContent = remain > 0 ? `預估還可串 ${remain} 串` : `已達基準，見底請按空籃換新`;
       document.getElementById('basketBar').style.width = `${pct}%`;
+      document.getElementById('basketModeTag').textContent = state.basket.useFixedYield ? '🔒固定串數' : '🔄自動學串數';
 
       const eggMat = state.materials.find(m => m.isEggBasket);
       const eggBadge = document.getElementById('eggStockBadge');
@@ -1959,7 +2114,7 @@ function getOrCreateSheet(ss, name, headers) {
       if (primaryFlavor) {
         const pCount = state.salesLogs.filter(l => l.flavorId === primaryFlavor.id).reduce((s, l) => s + l.qty, 0);
         container.innerHTML += `
-          <button onclick="recordSale('${primaryFlavor.id}', this)" class="pos-btn w-full flex-1 min-h-[125px] bg-gradient-to-br from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white rounded-3xl p-4 shadow-md border-2 border-amber-600 flex items-center justify-between text-left">
+          <button onclick="recordSale('${primaryFlavor.id}', this)" class="pos-btn w-full min-h-[105px] bg-gradient-to-br from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white rounded-3xl p-4 shadow-md border-2 border-amber-600 flex items-center justify-between text-left">
             <div>
               <span class="bg-white/25 text-white text-[11px] font-black px-2.5 py-0.5 rounded-full">⭐ 主力人氣王 (超大盲按區)</span>
               <div class="text-2xl sm:text-3xl font-black tracking-tight mt-1">${primaryFlavor.name}</div>
@@ -1976,7 +2131,7 @@ function getOrCreateSheet(ss, name, headers) {
       }
 
       if (otherFlavors.length > 0) {
-        let gridHtml = `<div class="grid grid-cols-2 gap-2.5 flex-1">`;
+        let gridHtml = `<div class="grid grid-cols-2 gap-2.5">`;
         const cardStyles = [
           'bg-white hover:bg-orange-50/60 border-2 border-orange-200 text-stone-800',
           'bg-white hover:bg-yellow-50/60 border-2 border-amber-200 text-stone-800',
@@ -1987,7 +2142,7 @@ function getOrCreateSheet(ss, name, headers) {
           const count = state.salesLogs.filter(l => l.flavorId === f.id).reduce((s, l) => s + l.qty, 0);
           const st = cardStyles[idx % cardStyles.length];
           gridHtml += `
-            <button onclick="recordSale('${f.id}', this)" class="pos-btn ${st} rounded-2xl p-3.5 shadow-xs flex flex-col justify-between text-left min-h-[92px]">
+            <button onclick="recordSale('${f.id}', this)" class="pos-btn ${st} rounded-2xl p-3.5 shadow-xs flex flex-col justify-between text-left min-h-[88px]">
               <div class="flex items-start justify-between gap-1 w-full">
                 <span class="text-base sm:text-lg font-black leading-tight text-stone-900">${f.name}</span>
                 <span class="mono text-base font-black text-amber-700 shrink-0">$${f.price}</span>
@@ -2028,8 +2183,17 @@ function getOrCreateSheet(ss, name, headers) {
       const eggMat = state.materials.find(m => m.isEggBasket);
       const eggCostPerStick = eggMat ? (eggMat.unitCost / avgSticks) : 0;
 
-      document.getElementById('eggRuleAvgSticks').textContent = `${avgSticks.toFixed(1)} 串/籃`;
-      document.getElementById('eggRuleBasketPerStick').textContent = `${(1 / avgSticks).toFixed(4)} 籃`;
+      const modeBtn = document.getElementById('eggBasketModeBtn');
+      if (state.basket.useFixedYield) {
+        modeBtn.textContent = '🔒 手動固定串數 (點擊改自動)';
+        modeBtn.className = 'pos-btn px-2.5 py-1 rounded-lg font-black text-xs border bg-stone-800 text-white border-stone-900';
+      } else {
+        modeBtn.textContent = `🔄 自動平均中 (${state.basket.historySticks.length}籃紀錄)`;
+        modeBtn.className = 'pos-btn px-2.5 py-1 rounded-lg font-black text-xs border bg-amber-100 text-amber-900 border-amber-300';
+      }
+
+      document.getElementById('manualBasketSticksInput').value = Number(avgSticks.toFixed(1));
+      document.getElementById('eggRuleBasketPerStick').textContent = (1 / avgSticks).toFixed(4);
       document.getElementById('eggRuleCostPerStick').textContent = `$${eggCostPerStick.toFixed(2)}`;
 
       const filterBar = document.getElementById('categoryFilterBar');
@@ -2066,25 +2230,30 @@ function getOrCreateSheet(ss, name, headers) {
           ? '全部口味共用'
           : (boundNames.join('、') || '未綁定口味');
 
-        const costPerStick = (Number(m.unitCost) || 0) * (Number(m.usagePerStick) || 0);
+        const usage = Number(m.usagePerStick) || 0;
+        const sticksPerUnit = usage > 0 ? Number((1 / usage).toFixed(2)) : 0;
+        const estRemainSticks = usage > 0 ? Math.round(m.stock / usage) : 0;
+        const costPerStick = (Number(m.unitCost) || 0) * usage;
         const catCfg = CATEGORIES[m.category] || CATEGORIES.ingredient;
-
-        const stockText = m.isEggBasket
-          ? `${Number(m.stock).toFixed(2)} ${m.unit} <span class="text-xs font-bold text-amber-700">(約 ${Math.round(m.stock * avgSticks)} 串)</span>`
-          : `${Math.round(m.stock).toLocaleString()} <span class="text-xs font-normal text-stone-500">${m.unit}</span>`;
-
-        const usageText = m.isEggBasket
-          ? `${Number(m.usagePerStick).toFixed(4)} 籃/串`
-          : `${Number(m.usagePerStick).toFixed(2)} ${m.unit} / 串`;
+        const isFixed = m.isEggBasket ? state.basket.useFixedYield : Boolean(m.isFixedRate);
 
         listEl.innerHTML += `
           <div class="bg-white border ${m.isEggBasket ? 'border-amber-300 ring-1 ring-amber-200' : 'border-stone-200'} rounded-2xl p-4 shadow-xs flex flex-col justify-between gap-3">
             <div>
               <div class="flex items-start justify-between gap-2">
                 <div>
-                  <span class="inline-block text-[10px] font-black px-2 py-0.5 rounded-md border ${catCfg.badgeCls} mb-1">
-                    ${catCfg.icon} ${catCfg.label}
-                  </span>
+                  <div class="flex items-center gap-1.5 mb-1">
+                    <span class="inline-block text-[10px] font-black px-2 py-0.5 rounded-md border ${catCfg.badgeCls}">
+                      ${catCfg.icon} ${catCfg.label}
+                    </span>
+                    <button onclick="toggleMaterialFixedRate('${m.id}')" class="text-[10px] font-black px-2 py-0.5 rounded-md border transition ${
+                      isFixed
+                        ? 'bg-stone-800 text-white border-stone-900'
+                        : 'bg-amber-50 text-amber-900 border-amber-300'
+                    }">
+                      ${isFixed ? '🔒 手動固定比例' : `🔄 盤點學習中 (${m.auditCount || 1}次)`}
+                    </button>
+                  </div>
                   <h4 class="font-black text-stone-800 text-sm">${m.name}</h4>
                   <p class="text-[11px] text-amber-800 font-bold mt-0.5">🔗 綁定：${boundText}</p>
                 </div>
@@ -2099,31 +2268,51 @@ function getOrCreateSheet(ss, name, headers) {
                 </div>
               </div>
 
+              <!-- 庫存與成本指標 -->
               <div class="mt-3 grid grid-cols-3 gap-2 bg-stone-50 p-2.5 rounded-xl border border-stone-200 text-xs">
                 <div>
                   <span class="text-[10px] text-stone-400 font-bold block">目前剩餘庫存</span>
-                  <strong class="mono text-sm font-black text-stone-800">${stockText}</strong>
+                  <strong class="mono text-sm font-black text-stone-800">${m.isEggBasket ? Number(m.stock).toFixed(2) : Math.round(m.stock).toLocaleString()} ${m.unit}</strong>
+                  <span class="text-[10px] text-amber-700 font-bold block">約可做 ${estRemainSticks} 串</span>
                 </div>
                 <div>
-                  <span class="text-[10px] text-stone-400 font-bold block">平均每串消耗</span>
-                  <strong class="mono text-xs font-black text-amber-700">${usageText}</strong>
+                  <span class="text-[10px] text-stone-400 font-bold block">每串消耗量</span>
+                  <strong class="mono text-xs font-black text-amber-700">${usage < 0.1 ? usage.toFixed(4) : usage.toFixed(2)} ${m.unit}</strong>
+                  <span class="text-[10px] text-stone-500 block">1${m.unit} ≈ ${sticksPerUnit}串</span>
                 </div>
                 <div>
                   <span class="text-[10px] text-stone-400 font-bold block">每串分攤成本</span>
                   <strong class="mono text-sm font-black text-emerald-700">$${costPerStick.toFixed(2)}</strong>
+                  <span class="text-[10px] text-stone-400 block">$${Number(m.unitCost).toFixed(1)}/${m.unit}</span>
                 </div>
+              </div>
+
+              <!-- 新增：手動設定「1 單位可用幾串」與「校正歸零」控制列 -->
+              <div class="mt-2.5 bg-amber-50/60 border border-amber-200/80 rounded-xl p-2 flex flex-wrap items-center justify-between gap-2 text-xs">
+                <div class="flex items-center gap-1">
+                  <span class="text-[11px] font-bold text-stone-700">手動設 1 ${m.unit} =</span>
+                  <input type="number" step="any" id="spuInput_${m.id}" value="${sticksPerUnit}" class="mono w-16 bg-white border border-stone-300 rounded-lg px-2 py-1 text-xs font-bold text-amber-900">
+                  <span class="text-[11px] font-bold text-stone-700">串</span>
+                  <button onclick="applyManualSticksPerUnit('${m.id}')" class="pos-btn bg-stone-800 hover:bg-stone-900 text-white text-[11px] font-bold px-2 py-1 rounded-lg">
+                    設定
+                  </button>
+                </div>
+                <button onclick="resetMaterialCalibration('${m.id}')" title="買了不同大小或新包裝時，清空歷史平均重新計算" class="pos-btn bg-white hover:bg-rose-50 text-rose-700 border border-rose-200 text-[11px] font-bold px-2 py-1 rounded-lg">
+                  🔄 校正歸零
+                </button>
               </div>
             </div>
 
+            <!-- 下班實秤剩餘庫存 -->
             <div class="pt-2 border-t border-stone-100 flex items-center justify-between gap-2">
               <div class="text-[11px] text-stone-500">
-                下班實秤剩餘 (${m.unit})：
-                <span class="text-[10px] text-stone-400 block">已校正 ${m.auditCount || 1} 次 · 單價 $${Number(m.unitCost).toFixed(2)}/${m.unit}</span>
+                下班更新剩餘 (${m.unit})：
+                <span class="text-[10px] text-stone-400 block">${isFixed ? '🔒目前已鎖定比例，僅更新庫存量' : '🔄輸入剩餘量將自動校正每串成本'}</span>
               </div>
               <div class="flex items-center gap-1.5">
                 <input type="number" step="any" id="auditInput_${m.id}" value="${m.isEggBasket ? Number(m.stock).toFixed(2) : Math.round(m.stock)}" class="mono w-20 bg-stone-50 border border-stone-300 rounded-xl px-2.5 py-1 text-xs font-bold text-stone-800">
                 <button onclick="applyMaterialAudit('${m.id}')" class="pos-btn bg-amber-500 hover:bg-amber-600 text-white text-xs font-black px-2.5 py-1.5 rounded-xl shadow-xs">
-                  更新並學成本
+                  ${isFixed ? '更新庫存' : '更新並學成本'}
                 </button>
               </div>
             </div>
@@ -2141,7 +2330,9 @@ function getOrCreateSheet(ss, name, headers) {
       document.getElementById('anaAvgTicket').textContent = `平均客單價 $${flow.avgTicket}`;
       document.getElementById('anaAvgDwellSec').textContent = flow.avgDwellSec ? flow.avgDwellSec : '--';
       document.getElementById('anaBasketAvg').textContent = avgBasket.toFixed(1);
-      document.getElementById('anaBasketSamples').textContent = `已累積 ${state.basket.historySticks.length} 籃實測紀錄`;
+      document.getElementById('anaBasketSamples').textContent = state.basket.useFixedYield
+        ? '🔒 目前為手動固定串數'
+        : `已累積 ${state.basket.historySticks.length} 籃實測紀錄`;
 
       const chartEl = document.getElementById('hourlyChart');
       const keys = Object.keys(flow.hourlyMap).sort();
@@ -2166,7 +2357,7 @@ function getOrCreateSheet(ss, name, headers) {
 
       const bList = document.getElementById('basketHistoryList');
       if (state.basketLogs.length === 0) {
-        bList.innerHTML = `<div class="text-stone-400 py-4 text-center">今日尚未按過「🧺 空籃換新」按鈕 (目前均值 ${avgBasket.toFixed(1)} 串/籃)</div>`;
+        bList.innerHTML = `<div class="text-stone-400 py-4 text-center">尚未按過「🧺 空籃換新」按鈕 (目前基準 ${avgBasket.toFixed(1)} 串/籃)</div>`;
       } else {
         bList.innerHTML = state.basketLogs.map(b => {
           const d = new Date(b.ts);
@@ -2175,7 +2366,7 @@ function getOrCreateSheet(ss, name, headers) {
             <div class="flex items-center justify-between bg-stone-50 border border-stone-200 px-3 py-1.5 rounded-xl">
               <span class="font-bold text-stone-700">第 ${b.basketNo} 籃 (${t} 清空)</span>
               <span class="mono font-black text-amber-700">實烤 ${b.sticks} 串 (破蛋${b.wasteEggs}顆)</span>
-              <span class="mono text-[11px] text-stone-500">更新均 ${b.newAvgAfter}串</span>
+              <span class="mono text-[11px] text-stone-500">基準 ${b.newAvgAfter}串</span>
             </div>
           `;
         }).join('');
