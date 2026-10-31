@@ -45,7 +45,7 @@
     ::-webkit-scrollbar-thumb { background: #d6cec2; border-radius: 99px; }
   </style>
 </head>
-<body class="h-screen flex flex-col overflow-hidden">
+<body class="min-h-screen flex flex-col overflow-y-auto pb-20">
 
   <!-- ================= 頂部極簡狀態列 ================= -->
   <header class="bg-white border-b border-stone-200 px-2.5 py-2 shrink-0 shadow-xs z-20">
@@ -100,10 +100,10 @@
   </header>
 
   <!-- ================= 主內容區 (五分頁切換) ================= -->
-  <main class="flex-1 overflow-y-auto">
+  <main class="flex-1">
     
     <!-- 【分頁 1：前台收銀 POS (極簡 + 原味超巨型按鈕)】 -->
-    <section id="tab-pos" class="h-full max-w-5xl mx-auto p-2.5 sm:p-4 flex flex-col justify-between gap-2.5">
+    <section id="tab-pos" class="max-w-5xl mx-auto p-2.5 sm:p-4 flex flex-col gap-2.5">
       
       <!-- 1. 鳥蛋籃數進度與空籃換新 (連動鳥蛋籃庫存) -->
       <div class="bg-white border border-stone-200 rounded-2xl p-3 shadow-xs flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5">
@@ -441,7 +441,7 @@
   </main>
 
   <!-- ================= 底部導覽列 (5 分頁) ================= -->
-  <nav class="bg-white border-t border-stone-200 px-1.5 py-1.5 shrink-0 z-20">
+  <nav class="fixed bottom-0 left-0 right-0 bg-white border-t border-stone-200 px-1.5 py-2 shadow-lg z-40">
     <div class="max-w-5xl mx-auto grid grid-cols-5 gap-1">
       <button onclick="switchTab('pos')" id="nav-pos" class="nav-btn py-2 rounded-xl font-black text-[11px] sm:text-xs flex flex-col items-center gap-0.5 bg-amber-500 text-white shadow-xs">
         <span>🍳 前台收銀</span>
