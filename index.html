@@ -777,7 +777,7 @@
 
     const DEFAULT_STATE = {
       cloud: {
-        gasUrl: '',
+        gasUrl: 'https://script.google.com/macros/s/AKfycbzfFnl0az6BNp-3IcI9iK9ZPOV4LpRNk-LxB4Fx-BOZx0iv_41CsYd5Bc7rTOEGeDio/exec',
         lastSyncTime: null,
         lastSyncStatus: '尚未設定'
       },
@@ -905,6 +905,13 @@
       }
       saveState();
       renderAll();
+
+    // 網頁一打開時，若已有綁定雲端網址且目前沒在營業中，自動從雲端同步最新口味與庫存
+    window.addEventListener('DOMContentLoaded', () => {
+      if (state.cloud && state.cloud.gasUrl && !state.shift.active && state.salesLogs.length === 0) {
+        pullStateFromCloud();
+      }
+    });
     }
 
     // 手動輸入 1 籃可做幾串
@@ -1370,6 +1377,7 @@
 
       saveState();
       renderAll();
+      if (state.cloud && state.cloud.gasUrl) pushStateToCloud('AUTO_SAVE');
     }
 
     // 🔄 單一原料「校正歸零」按鈕 (換新規格、新包裝大小時重置歷史數據)
@@ -1420,6 +1428,7 @@
         playClickTone(780, 0.07);
         saveState();
         renderAll();
+        if (state.cloud && state.cloud.gasUrl) pushStateToCloud('AUTO_SAVE');
         return;
       }
 
@@ -1702,6 +1711,7 @@
       saveState();
       closeModal('flavorModal');
       renderAll();
+      if (state.cloud && state.cloud.gasUrl) pushStateToCloud('AUTO_SAVE');
     }
 
     // 刪除口味
@@ -1714,6 +1724,7 @@
       });
       saveState();
       renderAll();
+      if (state.cloud && state.cloud.gasUrl) pushStateToCloud('AUTO_SAVE');
     }
 
     // 調整口味在前台的位置順序 (dir = -1 往前移, +1 往後移)
@@ -1725,6 +1736,7 @@
       state.flavors[target] = temp;
       saveState();
       renderAll();
+      if (state.cloud && state.cloud.gasUrl) pushStateToCloud('AUTO_SAVE');
     }
 
     // 一鍵切換前台按鈕為「巨型橫幅」或「兩欄並排」
@@ -1734,6 +1746,7 @@
       f.isPrimary = !f.isPrimary;
       saveState();
       renderAll();
+      if (state.cloud && state.cloud.gasUrl) pushStateToCloud('AUTO_SAVE');
     }
 
     function closeModal(id) {
@@ -2556,6 +2569,13 @@ function getOrCreateSheet(ss, name, headers) {
     }
 
     renderAll();
+
+    // 網頁一打開時，若已綁定雲端網址且目前沒有在營業中，自動從雲端背景抓取最新口味與庫存
+    window.addEventListener('DOMContentLoaded', () => {
+      if (state.cloud && state.cloud.gasUrl && !state.shift.active && state.salesLogs.length === 0) {
+        pullStateFromCloud();
+      }
+    });
   </script>
 </body>
 </html>
